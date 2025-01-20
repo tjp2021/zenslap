@@ -1,74 +1,116 @@
-import { createRouteHandler } from '@/lib/api/utils'
-import { TicketStatus, TicketPriority } from '@/lib/types'
-import { NextApiRequest, NextApiResponse } from 'next'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase/client'
+import type { CreateTicketDTO, UpdateTicketDTO, TicketBase } from '@/lib/types'
 
-export interface CreateTicketPayload {
-	title: string
-	description: string
-	priority: TicketPriority
-	metadata?: Record<string, unknown>
-}
+export const ticketService = {
+	async getAll() {
+		try {
+			const { data, error } = await supabase
+				.from('tickets')
+				.select('*')
+				.order('created_at', { ascending: false })
 
-export interface UpdateTicketPayload {
-	status?: TicketStatus
-	priority?: TicketPriority
-	metadata?: Record<string, unknown>
-}
+			if (error) throw error
+			return { data, error: null }
+		} catch (err) {
+			return { 
+				data: null, 
+				error: err instanceof Error ? err : new Error('Failed to fetch tickets') 
+			}
+		}
+	},
 
-// Export the raw handler for testing
-export async function handleCreateTicket(
-	req: NextApiRequest,
-	res: NextApiResponse,
-	supabase: SupabaseClient
-) {
-	const payload = req.body as CreateTicketPayload
-	
-	const { data, error } = await supabase
-		.from('tickets')
-		.insert({
-			...payload,
-			status: TicketStatus.OPEN,
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString()
-		})
-		.select()
-		.single()
+	async getById(id: string) {
+		try {
+			const { data, error } = await supabase
+				.from('tickets')
+				.select('*')
+				.eq('id', id)
+				.single()
 
-	if (error) throw error
-	return data
-}
+			if (error) throw error
+			if (!data) throw new Error('Ticket not found')
+			return { data, error: null }
+		} catch (err) {
+			return { 
+				data: null, 
+				error: err instanceof Error ? err : new Error('Failed to fetch ticket') 
+			}
+		}
+	},
 
-// Export the wrapped handler for API routes
-export const createTicket = createRouteHandler(handleCreateTicket)
+	async create(ticket: CreateTicketDTO) {
+		try {
+			console.log('Creating ticket with data:', ticket)
+			if (!supabase) {
+				throw new Error('Supabase client is not initialized')
+			}
 
-// Export the raw handler for testing
-export async function handleUpdateTicket(
-	req: NextApiRequest,
-	res: NextApiResponse,
-	supabase: SupabaseClient
-) {
-	const { id } = req.query
-	if (!id) {
-		res.status(400).json({ error: 'Missing ticket ID' })
-		return
+			const { data, error } = await supabase
+				.from('tickets')
+				.insert([{
+					...ticket,
+					status: ticket.status || 'open',
+					priority: ticket.priority || 'medium',
+					metadata: ticket.metadata || {}
+				}])
+				.select()
+				.single()
+
+			if (error) {
+				console.error('Supabase error:', error)
+				throw error
+			}
+			if (!data) {
+				console.error('No data returned from Supabase')
+				throw new Error('Failed to create ticket')
+			}
+			return { data, error: null }
+		} catch (err) {
+			console.error('Create ticket error:', err)
+			return { 
+				data: null, 
+				error: err instanceof Error ? err : new Error('Failed to create ticket') 
+			}
+		}
+	},
+
+	async update(data: UpdateTicketDTO) {
+		try {
+			const { id, ...updates } = data
+			const { data: ticket, error } = await supabase
+				.from('tickets')
+				.update({
+					...updates,
+					updated_at: new Date().toISOString()
+				})
+				.eq('id', id)
+				.select()
+				.single()
+
+			if (error) throw error
+			if (!ticket) throw new Error('Ticket not found')
+			return { data: ticket, error: null }
+		} catch (err) {
+			return { 
+				data: null, 
+				error: err instanceof Error ? err : new Error('Failed to update ticket') 
+			}
+		}
+	},
+
+	async delete(id: string) {
+		try {
+			const { error } = await supabase
+				.from('tickets')
+				.delete()
+				.eq('id', id)
+
+			if (error) throw error
+			return { error: null }
+		} catch (err) {
+			return { 
+				error: err instanceof Error ? err : new Error('Failed to delete ticket') 
+			}
+		}
 	}
-
-	const payload = req.body as UpdateTicketPayload
-
-	const { data, error } = await supabase
-		.from('tickets')
-		.update({
-			...payload,
-			updated_at: new Date().toISOString()
-		})
-		.eq('id', id)
-		.select()
-		.single()
-
-	if (error) throw error
-	return data
 }
-
-// Export the wrapped handler for API routes
-export const updateTicket = createRouteHandler(handleUpdateTicket) 

@@ -24,7 +24,6 @@
     "severity": "error"
   },
   "rules": {
-    // Modularity and Extensibility Patterns
     "architecture/module-boundaries": {
       "pattern": "import\\s+.*?from\\s+['\"]\\.\\.(?:\\/\\.\\.)+['\"]",
       "message": "Deep relative imports detected. Consider restructuring modules or creating a barrel export",
@@ -235,12 +234,12 @@
         ]
       }
     },
-    "run migration": {
-      "pattern": "^run\\s+migration$",
+    "run transition": {
+      "pattern": "^run\\s+transition$",
       "action": "document",
       "output": {
         "format": "markdown",
-        "filename": "${timestamp}_context_migration.md",
+        "filename": "${timestamp}_context_transition.md",
         "template": {
           "sections": [
             {

@@ -114,4 +114,94 @@ Anti-Patterns to Avoid:
 - AI integration points
 - Enhanced queue management
 - Advanced analytics
-- Custom field definitions 
+- Custom field definitions
+
+# Testing Insights: Ticket Service Debugging
+
+## Problem Context
+Debugging failing tests in a Next.js/TypeScript ticket management service with Supabase integration. The tests were failing due to mock configuration issues and inconsistent error handling.
+
+## Key Learnings
+
+### Jest Mock Configuration
+1. **Mock Hoisting**
+   - Jest hoists mock declarations before module imports
+   - Mock setup must be placed before imports
+   - Order of mock declarations affects test behavior
+
+2. **TypeScript Integration**
+   ```typescript
+   interface MockMethods {
+     insert: jest.Mock
+     select: jest.Mock
+     // ... other methods
+   }
+   ```
+   - Define clear interfaces for mocks
+   - Improves type safety and IDE support
+   - Makes mock behavior more predictable
+
+3. **Method Chaining**
+   ```typescript
+   const mockMethods = {
+     insert: jest.fn(() => mockMethods),
+     select: jest.fn(() => mockMethods)
+   }
+   ```
+   - Return mock object for chainable methods
+   - Keep consistent reference to mock object
+   - Simulate actual client behavior
+
+### Validation Layers
+1. **Schema Validation**
+   - Happens first using Zod
+   - Validates types and formats
+   - Returns standardized error messages
+
+2. **Database Validation**
+   - Secondary layer after schema
+   - Handles database-specific constraints
+   - Different error message format
+
+3. **Error Handling Strategy**
+   - Match error to correct validation layer
+   - Don't mix validation concerns
+   - Test each layer independently
+
+### Best Practices
+1. **Mock Setup**
+   - Place mocks before imports
+   - Use TypeScript interfaces
+   - Keep mock implementation simple
+
+2. **Test Structure**
+   - Test at the appropriate layer
+   - Match actual service behavior
+   - Clear separation of concerns
+
+3. **Error Handling**
+   - Consistent error messages
+   - Proper error propagation
+   - Match validation layer
+
+### Anti-Patterns
+1. **Configuration**
+   - Mixing mock order
+   - Missing type definitions
+   - Inconsistent mock behavior
+
+2. **Testing**
+   - Wrong validation layer
+   - Complex mock chains
+   - Implementation details
+
+3. **Error Handling**
+   - Mixed error messages
+   - Wrong error source
+   - Inconsistent formats
+
+## Impact
+- Reduced test flakiness
+- Improved error handling
+- Better type safety
+- More maintainable tests 
