@@ -1,0 +1,364 @@
+{
+  "$schema": "https://cursor.sh/schemas/cursor-rules.json",
+  
+  "defaultCommand": {
+    "pattern": ".*",
+    "overridingPrinciples": {
+      "primary": "KISS_PRINCIPLE",
+      "iterationStyle": "STEP_BY_STEP",
+      "testingRule": "TEST_EACH_TESTABLE_STEP",
+      "engineeringApproach": "AVOID_OVERENGINEERING",
+      "codeGeneration": "SINGLE_FILE_FOCUS",
+      "modificationPolicy": "ASK_FIRST_WITH_IMPACT_ANALYSIS"
+    },
+    "mandatoryBehaviors": [
+      "Follow KISS principle in all solutions",
+      "Iterate step by step, no skipping steps",
+      "Test each step that can be tested",
+      "Avoid over-engineering solutions",
+      "Do not auto-generate multiple files",
+      "Request permission before modifying/overwriting code",
+      "Provide impact analysis for all proposed changes"
+    ],
+    "action": "enforce",
+    "severity": "error"
+  },
+  "rules": {
+    // Modularity and Extensibility Patterns
+    "architecture/module-boundaries": {
+      "pattern": "import\\s+.*?from\\s+['\"]\\.\\.(?:\\/\\.\\.)+['\"]",
+      "message": "Deep relative imports detected. Consider restructuring modules or creating a barrel export",
+      "severity": "warning",
+      "examples": {
+        "bad": "import { UserService } from '../../../services/user'",
+        "good": "import { UserService } from '@services/user'"
+      }
+    },
+    "architecture/circular-dependency": {
+      "pattern": "import\\s+.*?from\\s+['\"](?!.*node_modules).*?['\"].*?export\\s+.*?\\{.*?\\}",
+      "message": "Potential circular dependency risk. Review module dependencies",
+      "severity": "warning",
+      "fix": {
+        "suggestions": [
+          "Extract shared logic to a separate module",
+          "Use dependency injection",
+          "Implement mediator pattern"
+        ]
+      }
+    },
+    "architecture/interface-segregation": {
+      "pattern": "interface\\s+[A-Z][a-zA-Z0-9]*\\s*\\{[^}]*?(get|set|handle|process|manage).*?\\1.*?\\1",
+      "message": "Interface has too many responsibilities. Split into focused interfaces",
+      "severity": "warning",
+      "examples": {
+        "bad": "interface UserManager { getUser(); setUser(); processUserData(); manageUserSession(); }",
+        "good": "interface UserRetriever { getUser(); }"
+      }
+    },
+    "architecture/dependency-injection": {
+      "pattern": "class\\s+[A-Z][a-zA-Z0-9]*\\s*{[^}]*?new\\s+[A-Z][a-zA-Z0-9]*\\([^)]*\\)",
+      "message": "Direct instantiation in class. Use dependency injection",
+      "severity": "warning",
+      "examples": {
+        "bad": "class UserService { private db = new Database(); }",
+        "good": "class UserService { constructor(private readonly db: Database) {} }"
+      }
+    },
+    "architecture/loose-coupling": {
+      "pattern": "class.*?implements.*?{[^}]*?(?<!\\.interface)\\.[a-zA-Z]+",
+      "message": "Implementation may be tightly coupled. Consider depending on abstractions",
+      "severity": "info",
+      "examples": {
+        "bad": "class OrderService { private userRepo = new PostgresUserRepository(); }",
+        "good": "class OrderService { constructor(private userRepo: IUserRepository) {} }"
+      }
+    },
+    "architecture/barrel-exports": {
+      "pattern": "export\\s*\\{[^}]*?\\}\\s*from\\s*['\"][^'\"]+['\"]\\s*;\\s*export\\s*\\{[^}]*?\\}\\s*from",
+      "message": "Multiple exports. Consider using a barrel file (index.ts) for cleaner exports",
+      "severity": "info",
+      "examples": {
+        "bad": "export { UserService } from './user'; export { OrderService } from './order';",
+        "good": "export * from './services';"
+      }
+    },
+    "architecture/strategy-pattern": {
+      "pattern": "(if|switch)\\s*\\([^)]*?(instanceof|typeof|type)[^)]*?\\)\\s*\\{",
+      "message": "Type checking logic. Consider using strategy pattern",
+      "severity": "info",
+      "examples": {
+        "bad": "if (payment instanceof CreditCard) { /* ... */ }",
+        "good": "paymentStrategy.process(payment)"
+      }
+    },
+    "architecture/event-coupling": {
+      "pattern": "\\b(emit|dispatch|trigger)\\s*\\(['\"][^'\"]+['\"]",
+      "message": "String-based events can be fragile. Consider using typed events",
+      "severity": "info",
+      "examples": {
+        "bad": "emit('userUpdated', data)",
+        "good": "emit(UserEvents.Updated, data)"
+      }
+    },
+    "architecture/god-object": {
+      "pattern": "class\\s+[A-Z][a-zA-Z0-9]*\\s*{[^}]*?(private|protected)\\s+[a-zA-Z0-9]+\\s*:[^;]*;.*?\\1",
+      "message": "Class has many private members. May be taking too many responsibilities",
+      "severity": "warning",
+      "threshold": 5
+    },
+    "architecture/feature-envy": {
+      "pattern": "\\.(get|set)[A-Z][a-zA-Z0-9]*\\(\\).*?\\.(get|set)[A-Z][a-zA-Z0-9]*\\(\\)",
+      "message": "Multiple accessor calls to another object. Consider moving behavior",
+      "severity": "info",
+      "examples": {
+        "bad": "this.user.getName() + this.user.getEmail()",
+        "good": "this.user.getDisplayInfo()"
+      }
+    }
+  },
+  "rulesets": {
+    "architecture-focused": {
+      "extends": "default",
+      "rules": {
+        "architecture/module-boundaries": { "severity": "error" },
+        "architecture/circular-dependency": { "severity": "error" },
+        "architecture/dependency-injection": { "severity": "warning" }
+      }
+    },
+    "maintainability-focused": {
+      "extends": "default",
+      "rules": {
+        "architecture/god-object": { "severity": "error" },
+        "architecture/feature-envy": { "severity": "warning" },
+        "architecture/interface-segregation": { "severity": "warning" }
+      }
+    }
+  },
+  "config": {
+    "architectureThresholds": {
+      "maxDependencies": 5,
+      "maxInterfaceMembers": 5,
+      "maxPrivateMembers": 7,
+      "maxMethodLength": 20
+    },
+    "modulePatterns": {
+      "allowed": [
+        "@core/*",
+        "@shared/*",
+        "@features/*"
+      ],
+      "forbidden": [
+        "../../../*"
+      ]
+    }
+  },
+  "projectTypes": {
+    "microservice": {
+      "recommended": [
+        "architecture/module-boundaries",
+        "architecture/interface-segregation",
+        "architecture/loose-coupling"
+      ],
+      "thresholds": {
+        "maxDependencies": 3,
+        "maxInterfaceMembers": 3
+      }
+    },
+    "monolith": {
+      "recommended": [
+        "architecture/circular-dependency",
+        "architecture/barrel-exports",
+        "architecture/god-object"
+      ],
+      "thresholds": {
+        "maxDependencies": 7,
+        "maxInterfaceMembers": 7
+      }
+    },
+    "library": {
+      "recommended": [
+        "architecture/interface-segregation",
+        "architecture/strategy-pattern",
+        "architecture/loose-coupling"
+      ],
+      "thresholds": {
+        "maxDependencies": 4,
+        "maxInterfaceMembers": 4
+      }
+    }
+  },
+  "commands": {
+    "run deduce": {
+      "pattern": "^run\\s+deduce$",
+      "action": "analyze",
+      "template": {
+        "sections": [
+          {
+            "title": "Previous Solution Attempts",
+            "analysis": "Extract and list all attempted solutions from context",
+            "format": [
+              "Attempt #${number}:",
+              "- Approach: ${description}",
+              "- Outcome: ${result}",
+              "- Failure Point: ${failureReason}"
+            ]
+          },
+          {
+            "title": "Elimination Analysis",
+            "analysis": "What we've learned doesn't work",
+            "format": [
+              "Ruled Out:",
+              "- ${approach}: ${reason}",
+              "Remaining Possibilities:",
+              "- ${possibility}: ${rationale}"
+            ]
+          },
+          {
+            "title": "Potential Problem Areas",
+            "analysis": "Identify suspicious code regions",
+            "format": [
+              "Area: ${location}",
+              "- Risk Level: ${severity}",
+              "- Reasoning: ${explanation}",
+              "- Investigation Priority: ${priority}"
+            ]
+          },
+          {
+            "title": "Next Steps",
+            "analysis": "Based on elimination process",
+            "format": [
+              "Recommended Actions:",
+              "1. ${action}",
+              "Rationale: ${explanation}"
+            ]
+          }
+        ]
+      }
+    },
+    "run migration": {
+      "pattern": "^run\\s+migration$",
+      "action": "document",
+      "output": {
+        "format": "markdown",
+        "filename": "${timestamp}_context_migration.md",
+        "template": {
+          "sections": [
+            {
+              "title": "Context Summary",
+              "content": "Brief overview of current work"
+            },
+            {
+              "title": "Key Problems",
+              "content": "List of issues being addressed"
+            },
+            {
+              "title": "Solution Progress",
+              "content": [
+                "Attempted Solutions",
+                "Current Status",
+                "Blocking Issues"
+              ]
+            },
+            {
+              "title": "Learning Points",
+              "content": "Key insights gained"
+            },
+            {
+              "title": "Next Steps",
+              "content": "Immediate next actions"
+            }
+          ]
+        }
+      }
+    },
+    "run analysis": {
+      "pattern": "^run\\s+analysis$",
+      "action": "document",
+      "output": {
+        "format": "markdown",
+        "filename": "brainlift.md",
+        "append": true,
+        "template": {
+          "sections": [
+            {
+              "title": "${feature_or_problem}_Analysis",
+              "subsections": [
+                {
+                  "title": "Problem/Feature Overview",
+                  "content": [
+                    "Initial Requirements",
+                    "Key Challenges",
+                    "Success Criteria"
+                  ]
+                },
+                {
+                  "title": "Solution Attempts",
+                  "format": [
+                    "### Attempt ${number}",
+                    "- Approach: ${description}",
+                    "- Implementation: ${details}",
+                    "- Outcome: ${result}",
+                    "- Learnings: ${insights}"
+                  ]
+                },
+                {
+                  "title": "Final Solution",
+                  "content": [
+                    "Implementation Details",
+                    "Why It Works",
+                    "Key Components"
+                  ]
+                },
+                {
+                  "title": "Key Lessons",
+                  "content": [
+                    "Technical Insights",
+                    "Process Improvements",
+                    "Best Practices",
+                    "Anti-Patterns to Avoid"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "run debt": {
+      "pattern": "^run\\s+debt$",
+      "action": "document",
+      "output": {
+        "format": "markdown",
+        "filename": "tech-debt.md",
+        "append": true,
+        "template": {
+          "sections": [
+            {
+              "title": "## Technical Debt Entry TD-${timestamp}",
+              "content": [
+                "### Overview",
+                "- Created: ${date}",
+                "- Status: Active",
+                "- Priority: ${priority}",
+                "",
+                "### Context",
+                "- Location: ${files_affected}",
+                "- Problem: ${description}",
+                "- Why Accepted: ${rationale}",
+                "",
+                "### Resolution Plan",
+                "- Proposed Fix: ${proposed_solution}",
+                "- Dependencies: ${dependencies}",
+                "- Estimated Effort: ${effort}",
+                "",
+                "### Follow-up",
+                "- Warning Signs: ${signs_to_watch}",
+                "- Related Areas: ${related_code}"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+} 
