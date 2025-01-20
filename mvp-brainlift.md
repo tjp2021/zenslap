@@ -204,4 +204,97 @@ Debugging failing tests in a Next.js/TypeScript ticket management service with S
 - Reduced test flakiness
 - Improved error handling
 - Better type safety
-- More maintainable tests 
+- More maintainable tests
+
+# Database Initialization Debugging
+
+## Problem Context
+Debugging ticket creation failures in the Next.js/TypeScript CRM application with Supabase integration. The issue manifested as a 400 Bad Request error when attempting to create tickets, despite correct form data submission.
+
+## Root Cause Analysis
+
+### Initial Symptoms
+1. **API Response**
+   ```typescript
+   POST /api/tickets 400 (Bad Request)
+   Error: Failed to create ticket
+   ```
+   - Form data correctly structured
+   - API endpoint properly configured
+   - Environment variables set correctly
+
+2. **Connection Issues**
+   ```
+   Could not establish connection. Receiving end does not exist.
+   ```
+   - Indicated potential database connectivity problems
+   - Supabase client properly initialized
+   - Environment variables correctly set
+
+### Investigation Path
+1. **Client Setup**
+   - Consolidated duplicate Supabase client initializations
+   - Added proper error logging
+   - Verified environment variables
+
+2. **Database Schema**
+   - Discovered missing migration files
+   - No table structure defined
+   - Seed file causing errors
+
+3. **Solution Implementation**
+   ```sql
+   create table if not exists tickets (
+       id uuid default uuid_generate_v4() primary key,
+       title text not null,
+       description text not null,
+       status text not null default 'open',
+       priority text not null default 'medium',
+       metadata jsonb not null default '{}'::jsonb,
+       created_at timestamptz not null default now(),
+       updated_at timestamptz not null default now()
+   );
+   ```
+   - Created proper migration file
+   - Added appropriate constraints
+   - Implemented necessary indexes
+
+## Key Learnings
+
+### Best Practices
+1. **Database Setup**
+   - Always initialize schema before testing
+   - Use migrations for schema changes
+   - Keep seed data minimal initially
+
+2. **Error Handling**
+   - Add detailed error logging
+   - Check database connection first
+   - Verify schema existence
+
+3. **Development Flow**
+   - Follow migration-based approach
+   - Test database operations early
+   - Keep schema changes versioned
+
+### Anti-Patterns
+1. **Setup**
+   - Skipping schema initialization
+   - Multiple client initializations
+   - Complex seed data too early
+
+2. **Error Handling**
+   - Generic error messages
+   - Missing database logs
+   - Unclear error propagation
+
+3. **Development**
+   - Direct database modifications
+   - Unversioned schema changes
+   - Untested database operations
+
+## Impact
+- Resolved ticket creation issues
+- Improved error visibility
+- Better development process
+- More maintainable schema 

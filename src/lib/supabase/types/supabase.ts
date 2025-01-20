@@ -6,6 +6,28 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type ActivityType = 'comment' | 'note' | 'status_change' | 'field_change'
+
+export interface ActivityContent {
+  comment: {
+    message: string
+    format: 'text'
+  }
+  note: {
+    message: string
+    format: 'text'
+  }
+  status_change: {
+    from: string
+    to: string
+  }
+  field_change: {
+    field: string
+    from: string
+    to: string
+  }
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -39,6 +61,38 @@ export interface Database {
           metadata?: Json
           created_at?: string
           updated_at?: string
+        }
+      }
+      ticket_activities: {
+        Row: {
+          id: string
+          ticket_id: string
+          actor_id: string
+          activity_type: ActivityType
+          is_internal: boolean
+          parent_id: string | null
+          content: ActivityContent[keyof ActivityContent]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          actor_id: string
+          activity_type: ActivityType
+          is_internal?: boolean
+          parent_id?: string | null
+          content: ActivityContent[keyof ActivityContent]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          actor_id?: string
+          activity_type?: ActivityType
+          is_internal?: boolean
+          parent_id?: string | null
+          content?: ActivityContent[keyof ActivityContent]
+          created_at?: string
         }
       }
     }
