@@ -72,7 +72,7 @@ function SortableColumn({ field, children, className }: SortableColumnProps) {
   )
 }
 
-export function TicketList() {
+export default function TicketList() {
   const [currentPage, setCurrentPage] = useState(1)
   const { 
     tickets, 

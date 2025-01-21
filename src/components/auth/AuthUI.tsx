@@ -20,6 +20,7 @@ export default function AuthUI() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         router.refresh()
+        router.push('/tickets')
       }
     })
 
