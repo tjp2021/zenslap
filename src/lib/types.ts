@@ -59,6 +59,8 @@ export type Ticket = {
 	metadata: Record<string, unknown>
 	created_at: string
 	updated_at: string
+	created_by: string
+	assigned_to?: string
 }
 
 export type CreateTicketDTO = Omit<Ticket, 'id' | 'created_at' | 'updated_at'> & {
