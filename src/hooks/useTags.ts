@@ -1,23 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Tag } from '@/lib/types'
 import { tags } from '@/lib/api/routes/tags'
+import getSupabaseClient from '@/lib/supabase/client'
 
 interface UseTagsOptions {
     ticketId?: string
     onError?: (error: Error) => void
+    enabled?: boolean
 }
 
-export function useTags({ ticketId, onError }: UseTagsOptions = {}) {
+export function useTags({ ticketId, onError, enabled = true }: UseTagsOptions = {}) {
     const queryClient = useQueryClient()
+    const supabase = getSupabaseClient()
 
     // Fetch all tags
     const { data: allTags, isLoading: isLoadingAll } = useQuery({
         queryKey: ['tags'],
         queryFn: async () => {
-            const result = await tags.getAll()
-            if (result.error) throw result.error
-            return result.data || []
-        }
+            const { data: tags, error } = await supabase
+                .from('tags')
+                .select('*')
+
+            if (error) throw error
+            return tags
+        },
+        enabled
     })
 
     // Fetch ticket-specific tags

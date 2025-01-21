@@ -45,8 +45,8 @@ function EditableMessage({
         try {
             await onUpdate(id, editedContent)
             setIsEditing(false)
-        } catch (error) {
-            // Error is handled by parent component
+        } catch {
+            console.error('Failed to update message')
             setEditedContent(content)
         }
     }, [id, content, editedContent, onUpdate, isUpdating])

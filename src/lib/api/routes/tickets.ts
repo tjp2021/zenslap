@@ -1,21 +1,21 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import getSupabaseClient from '@/lib/supabase/client'
+import { TicketStatus, TicketPriority } from '@/lib/types'
 
 export interface CreateTicketDTO {
 	title: string
 	description: string
-	status: 'open' | 'closed'
-	priority: 'low' | 'medium' | 'high'
+	status: TicketStatus
+	priority: TicketPriority
 	metadata: Record<string, any>
-	tags: string[]
+	tags?: string[]
 }
 
 export interface UpdateTicketDTO {
 	id: string
 	title?: string
 	description?: string
-	status?: 'open' | 'closed'
-	priority?: 'low' | 'medium' | 'high'
+	status?: TicketStatus
+	priority?: TicketPriority
 	metadata?: Record<string, any>
 	tags?: string[]
 }
@@ -38,11 +38,11 @@ export const getAll = async (supabase = getSupabaseClient()) => {
 			data,
 			error: null
 		}
-	} catch (err) {
-		console.error('Get tickets error:', err)
+	} catch (_err) {
+		console.error('Get tickets error:', _err)
 		return {
 			data: null,
-			error: err instanceof Error ? err : new Error('Failed to get tickets')
+			error: _err instanceof Error ? _err : new Error('Failed to get tickets')
 		}
 	}
 }
@@ -74,11 +74,11 @@ export const getById = async (id: string, supabase = getSupabaseClient()) => {
 			data,
 			error: null
 		}
-	} catch (err) {
-		console.error('Get ticket error:', err)
+	} catch (_err) {
+		console.error('Get ticket error:', _err)
 		return {
 			data: null,
-			error: err instanceof Error ? err : new Error('Failed to get ticket')
+			error: _err instanceof Error ? _err : new Error('Failed to get ticket')
 		}
 	}
 }
@@ -110,11 +110,11 @@ export const create = async (data: CreateTicketDTO, supabase = getSupabaseClient
 			data: result,
 			error: null
 		}
-	} catch (err) {
-		console.error('Create ticket error:', err)
+	} catch (_err) {
+		console.error('Create ticket error:', _err)
 		return {
 			data: null,
-			error: err instanceof Error ? err : new Error('Failed to create ticket')
+			error: _err instanceof Error ? _err : new Error('Failed to create ticket')
 		}
 	}
 }
@@ -147,11 +147,11 @@ export const update = async (id: string, data: UpdateTicketDTO, supabase = getSu
 			data: result,
 			error: null
 		}
-	} catch (err) {
-		console.error('Update ticket error:', err)
+	} catch (_err) {
+		console.error('Update ticket error:', _err)
 		return {
 			data: null,
-			error: err instanceof Error ? err : new Error('Failed to update ticket')
+			error: _err instanceof Error ? _err : new Error('Failed to update ticket')
 		}
 	}
 }
@@ -182,11 +182,19 @@ export const deleteTicket = async (id: string, supabase = getSupabaseClient()) =
 			data: { success: true },
 			error: null
 		}
-	} catch (err) {
-		console.error('Delete ticket error:', err)
+	} catch (_err) {
+		console.error('Delete ticket error:', _err)
 		return {
 			data: null,
-			error: err instanceof Error ? err : new Error('Failed to delete ticket')
+			error: _err instanceof Error ? _err : new Error('Failed to delete ticket')
 		}
 	}
+}
+
+export const ticketService = {
+	getAll,
+	getById,
+	create,
+	update,
+	delete: deleteTicket
 }

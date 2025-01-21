@@ -1,6 +1,12 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { AnalyticsEvent, AnalyticsEventType } from '@/lib/types/integrations'
 
+interface AnalyticsConfig {
+  provider: string
+  apiKey: string
+  options?: Record<string, unknown>
+}
+
 export class AnalyticsService {
   private static instance: AnalyticsService
   private supabase = createClientComponentClient()

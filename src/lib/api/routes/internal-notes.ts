@@ -1,5 +1,4 @@
 import getSupabaseClient from '@/lib/supabase/client'
-import type { InternalNote } from '@/lib/types'
 import { createInternalNoteSchema, internalNoteSchema } from '@/lib/validation'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'

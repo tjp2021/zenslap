@@ -21,7 +21,7 @@ interface TagFormProps {
 
 export function TagForm({ onSubmit, isLoading, className }: TagFormProps) {
     const [color, setColor] = useState('#000000')
-    
+
     const { 
         register, 
         handleSubmit, 
@@ -42,8 +42,8 @@ export function TagForm({ onSubmit, isLoading, className }: TagFormProps) {
             await onSubmit(data)
             reset()
             setColor('#000000')
-        } catch (error) {
-            // Error is handled by parent component
+        } catch {
+            // Handle error silently - UI already shows failure states
         }
     }, [onSubmit, reset, isLoading])
 

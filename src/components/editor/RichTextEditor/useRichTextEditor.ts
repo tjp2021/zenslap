@@ -7,10 +7,9 @@ import Mention from '@tiptap/extension-mention'
 import { RichTextEditorProps } from './RichTextEditor.types'
 
 export function useRichTextEditor({
-  initialContent = '',
+  initialContent,
   onChange,
   readOnly = false,
-  placeholder = 'Start typing...',
   maxLength,
   enableImages = true,
   enableMentions = true,

@@ -1,6 +1,14 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { WebhookConfig, WebhookEvent } from '@/lib/types/integrations'
 import { createHmac } from 'crypto'
+import { z } from 'zod'
+import { Ticket } from '@/lib/types'
+
+interface WebhookPayload {
+  event: string
+  data: unknown
+  timestamp: string
+}
 
 export class WebhookService {
   private static instance: WebhookService
@@ -132,7 +140,8 @@ export class WebhookService {
 
     try {
       await this.sendWebhookRequest(webhook, data)
-    } catch (error) {
+    } catch (_error) {
+      console.error('Failed to send webhook:', _error)
       await this.handleRetry(webhook, data, attempt + 1)
     }
   }

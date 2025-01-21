@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Ticket, TicketStatus, TicketPriority } from '@/lib/types'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,30 +29,7 @@ export function QueueList({
   const supabase = createClientComponentClient()
   const { user } = useAuth()
 
-  useEffect(() => {
-    fetchTickets()
-    
-    const channel = supabase
-      .channel('tickets')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tickets'
-        },
-        (payload) => {
-          fetchTickets()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [status, priority, assignee, sortBy, sortOrder])
-
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     setLoading(true)
     setError(null)
     
@@ -95,7 +72,22 @@ export function QueueList({
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, sortBy, sortOrder, status, priority, assignee])
+
+  useEffect(() => {
+    fetchTickets()
+    
+    const channel = supabase
+      .channel('tickets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
+        fetchTickets()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchTickets, supabase])
 
   const handleAssign = async (ticketId: string) => {
     try {

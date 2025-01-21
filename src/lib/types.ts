@@ -16,9 +16,10 @@ export type TicketPriority = typeof TICKET_PRIORITIES[number]
 export interface Tag {
 	id: string
 	name: string
-	color?: string
+	color: string
 	created_at: string
 	ticket_ids?: string[]
+	metadata?: Record<string, unknown>
 }
 
 export interface CreateTagData {
@@ -60,7 +61,7 @@ export interface TicketBase {
 	description: string
 	status: TicketStatus
 	priority: TicketPriority
-	metadata: Record<string, any>
+	metadata: Record<string, unknown>
 	tags?: Tag[]
 	assignee?: string | null
 	created_by: string
@@ -80,7 +81,7 @@ export interface CreateTicketDTO {
 	description: string
 	status?: TicketStatus
 	priority?: TicketPriority
-	metadata?: Record<string, any>
+	metadata?: Record<string, unknown>
 	tags?: string[] // Array of tag IDs
 	assignee?: string | null
 }
@@ -92,7 +93,7 @@ export interface UpdateTicketDTO {
 	description?: string
 	status?: TicketStatus
 	priority?: TicketPriority
-	metadata?: Record<string, any>
+	metadata?: Record<string, unknown>
 	tags?: string[] // Array of tag IDs
 	assignee?: string | null
 }
@@ -116,3 +117,12 @@ export interface User {
 }
 
 // Validation schemas will be defined in a separate validation.ts file
+
+export interface Message {
+	id: string
+	content: string
+	ticket_id: string
+	created_by: string
+	created_at: string
+	metadata?: Record<string, unknown>
+}

@@ -1,10 +1,11 @@
 import { useCallback } from 'react'
+import type { ClipboardEvent } from 'react'
 import { EditorContent } from '@tiptap/react'
 import { cn } from '@/lib/utils'
 import { RichTextEditorProps } from './RichTextEditor.types'
 import { useRichTextEditor } from './useRichTextEditor'
 import { EditorProvider } from './EditorContext'
-import { Toolbar } from './components/Toolbar'
+import { Toolbar } from './components/Toolbar/Toolbar'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 
 function RichTextEditorContent({
@@ -23,8 +24,6 @@ function RichTextEditorContent({
     editor,
     content,
     wordCount,
-    updateContent,
-    reset,
     isEditable,
   } = useRichTextEditor({
     initialContent,
@@ -37,7 +36,7 @@ function RichTextEditorContent({
   })
 
   const handlePaste = useCallback(
-    (event: ClipboardEvent) => {
+    (event: ClipboardEvent<HTMLDivElement>) => {
       if (!editor || !maxLength) return
 
       const text = event.clipboardData?.getData('text/plain') || ''

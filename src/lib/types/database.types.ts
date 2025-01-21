@@ -77,4 +77,13 @@ export interface Database {
 }
 
 // Helper type to access nested types
-type Tables = Database['public']['Tables'] 
+type Tables = Database['public']['Tables']
+
+export interface DatabaseConfig {
+  host: string
+  port: number
+  database: string
+  schema?: string
+  ssl?: boolean
+  options?: Record<string, unknown>
+} 

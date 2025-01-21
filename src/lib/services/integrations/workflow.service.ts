@@ -1,12 +1,14 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { 
   Workflow, 
+  WorkflowConfig, 
+  WorkflowTrigger, 
   WorkflowCondition, 
-  WorkflowAction,
-  WorkflowTrigger 
+  WorkflowAction 
 } from '@/lib/types/integrations'
 import { WebhookService } from './webhook.service'
 import { AIService } from './ai.service'
+import { Ticket } from '@/lib/types'
 
 export class WorkflowService {
   private static instance: WorkflowService
@@ -164,11 +166,11 @@ export class WorkflowService {
     if (error) throw error
   }
 
-  private async sendNotification(config: any, context: Record<string, any>): Promise<void> {
+  private async sendNotification(_config: any, _context: Record<string, any>): Promise<void> {
     // Implement notification logic (email, push, etc.)
   }
 
-  private async runAIAnalysis(config: any, context: Record<string, any>): Promise<void> {
+  private async runAIAnalysis(_config: any, _context: Record<string, any>): Promise<void> {
     // Implement AI analysis logic
   }
 

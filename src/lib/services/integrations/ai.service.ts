@@ -1,5 +1,38 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { AIConfig, AIAnalysis, AIAnalysisType } from '@/lib/types/integrations'
+import type { TicketPriority } from '@/lib/types'
+
+interface AIResponse<T> {
+  result: T
+  confidence?: number
+  metadata?: Record<string, unknown>
+}
+
+interface SentimentResponse {
+  sentiment: 'positive' | 'negative' | 'neutral'
+  score: number
+}
+
+interface PriorityResponse {
+  priority: TicketPriority
+  reason: string
+}
+
+interface CategoryResponse {
+  category: string
+  subcategory?: string
+}
+
+interface ResponseSuggestion {
+  content: string
+  context?: Record<string, unknown>
+}
+
+interface UrgencyResponse {
+  isUrgent: boolean
+  reason: string
+  suggestedPriority?: TicketPriority
+}
 
 export class AIService {
   private static instance: AIService
@@ -67,7 +100,7 @@ export class AIService {
       modelInfo: {
         provider: config.provider,
         model: config.model,
-        version: config.options?.version
+        version: (config.options?.version as string) || undefined
       }
     }
 
@@ -81,7 +114,7 @@ export class AIService {
     return data as AIAnalysis
   }
 
-  private getAnalysisFunction(type: AIAnalysisType): (content: string, config: AIConfig) => Promise<any> {
+  private getAnalysisFunction(type: AIAnalysisType): (content: string, config: AIConfig) => Promise<AIResponse<unknown>> {
     switch (type) {
       case 'sentiment':
         return this.analyzeSentiment.bind(this)
@@ -99,72 +132,74 @@ export class AIService {
   }
 
   // Individual Analysis Methods
-  private async analyzeSentiment(content: string, config: AIConfig): Promise<any> {
-    const prompt = `Analyze the sentiment of the following text. Return a JSON object with 'sentiment' (positive/negative/neutral) and 'confidence' (0-1):
-
-Content: ${content}`
-
-    return this.callAI(prompt, config)
+  private async analyzeSentiment(content: string, config: AIConfig): Promise<AIResponse<SentimentResponse>> {
+    const response = await this.callAI<SentimentResponse>(`Analyze sentiment: ${content}`, config)
+    return response
   }
 
-  private async analyzePriority(content: string, config: AIConfig): Promise<any> {
-    const prompt = `Analyze the priority level needed for this ticket. Return a JSON object with 'priority' (high/medium/low) and 'confidence' (0-1):
-
-Content: ${content}`
-
-    return this.callAI(prompt, config)
+  private async analyzePriority(content: string, config: AIConfig): Promise<AIResponse<PriorityResponse>> {
+    const response = await this.callAI<PriorityResponse>(`Analyze priority: ${content}`, config)
+    return response
   }
 
-  private async analyzeCategory(content: string, config: AIConfig): Promise<any> {
-    const prompt = `Detect the category of this ticket. Return a JSON object with 'category' and 'confidence' (0-1):
-
-Content: ${content}`
-
-    return this.callAI(prompt, config)
+  private async analyzeCategory(content: string, config: AIConfig): Promise<AIResponse<CategoryResponse>> {
+    const response = await this.callAI<CategoryResponse>(`Analyze category: ${content}`, config)
+    return response
   }
 
-  private async suggestResponse(content: string, config: AIConfig): Promise<any> {
-    const prompt = `Suggest a response for this ticket. Return a JSON object with 'response' and 'confidence' (0-1):
-
-Content: ${content}`
-
-    return this.callAI(prompt, config)
+  private async suggestResponse(content: string, config: AIConfig): Promise<AIResponse<ResponseSuggestion>> {
+    const response = await this.callAI<ResponseSuggestion>(`Suggest response: ${content}`, config)
+    return response
   }
 
-  private async analyzeUrgency(content: string, config: AIConfig): Promise<any> {
-    const prompt = `Analyze the urgency of this ticket. Return a JSON object with 'urgency' (immediate/high/medium/low) and 'confidence' (0-1):
-
-Content: ${content}`
-
-    return this.callAI(prompt, config)
+  private async analyzeUrgency(content: string, config: AIConfig): Promise<AIResponse<UrgencyResponse>> {
+    const response = await this.callAI<UrgencyResponse>(`Analyze urgency: ${content}`, config)
+    return response
   }
 
   // AI Provider Integration
-  private async callAI(prompt: string, config: AIConfig): Promise<any> {
+  private async callAI<T>(prompt: string, config: AIConfig): Promise<AIResponse<T>> {
     switch (config.provider) {
       case 'openai':
-        return this.callOpenAI(prompt, config)
+        return this.callOpenAI<T>(prompt, config)
       case 'anthropic':
-        return this.callAnthropic(prompt, config)
+        return this.callAnthropic<T>(prompt, config)
       case 'cohere':
-        return this.callCohere(prompt, config)
+        return this.callCohere<T>(prompt, config)
       default:
         throw new Error(`Unsupported AI provider: ${config.provider}`)
     }
   }
 
-  private async callOpenAI(prompt: string, config: AIConfig): Promise<any> {
-    // Implement OpenAI API call
-    throw new Error('OpenAI integration not implemented')
+  private async callOpenAI<T>(_prompt: string, _config: AIConfig): Promise<AIResponse<T>> {
+    // Implementation
+    throw new Error('Not implemented')
   }
 
-  private async callAnthropic(prompt: string, config: AIConfig): Promise<any> {
-    // Implement Anthropic API call
-    throw new Error('Anthropic integration not implemented')
+  private async callAnthropic<T>(_prompt: string, _config: AIConfig): Promise<AIResponse<T>> {
+    // Implementation
+    throw new Error('Not implemented')
   }
 
-  private async callCohere(prompt: string, config: AIConfig): Promise<any> {
-    // Implement Cohere API call
-    throw new Error('Cohere integration not implemented')
+  private async callCohere<T>(_prompt: string, _config: AIConfig): Promise<AIResponse<T>> {
+    // Implementation
+    throw new Error('Not implemented')
   }
-} 
+
+  async analyze(type: AIAnalysisType, content: string, config: AIConfig): Promise<AIResponse<unknown>> {
+    const analysisFunction = this.getAnalysisFunction(type) as (content: string, config: AIConfig) => Promise<AIResponse<unknown>>
+    return analysisFunction(content, config)
+  }
+
+  async generateSummary(_prompt: string, _config?: any) {
+    // Implementation
+  }
+
+  async generateTags(_prompt: string, _config?: any) {
+    // Implementation
+  }
+
+  async generateTitle(_prompt: string, _config?: any) {
+    // Implementation
+  }
+}

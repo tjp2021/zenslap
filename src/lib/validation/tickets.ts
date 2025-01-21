@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { TICKET_PRIORITIES, TICKET_STATUSES } from '../types'
-import { ActivityContent, ActivityType } from '../supabase/types/supabase'
 
 export const createTicketSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),

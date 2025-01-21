@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { TicketMessage } from '@/lib/types'
 import { messages } from '@/lib/api/routes/messages'
 
 interface UseMessagesOptions {

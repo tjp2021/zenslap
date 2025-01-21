@@ -12,10 +12,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface QuickResponseSelectorProps {
   onSelect: (content: string) => void
-  className?: string
 }
 
-export function QuickResponseSelector({ onSelect, className }: QuickResponseSelectorProps) {
+export function QuickResponseSelector({ onSelect }: QuickResponseSelectorProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>()
   
   const { data: categories, isLoading: loadingCategories } = useCategories()

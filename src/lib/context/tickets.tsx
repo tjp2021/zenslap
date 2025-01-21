@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react'
+import { createContext, useContext, ReactNode, useState, useEffect, useMemo, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types/supabase'
 import type { Ticket, CreateTicketDTO, UpdateTicketDTO } from '@/lib/types'
@@ -53,6 +53,7 @@ export interface TicketsContextType {
   getOperationState: (type: OperationType, id?: string) => OperationState | undefined
   bulkUpdateTickets: (ids: string[], updates: Partial<UpdateTicketDTO>) => Promise<{ error: string | null }>
   assignTickets: (ids: string[], assignee: string | null) => Promise<{ error: string | null }>
+  loading: boolean
 }
 
 const defaultFilters: TicketFilters = {
@@ -83,6 +84,7 @@ export function TicketsProvider({
   const [sort, setSort] = useState<SortConfig>(defaultSort)
   const defaultClient = createClientComponentClient<Database>()
   const supabase = supabaseClient || defaultClient
+  const [loading, setLoading] = useState(false)
 
   // Memoized filtered and sorted tickets
   const filteredAndSortedTickets = useMemo(() => {
@@ -197,38 +199,40 @@ export function TicketsProvider({
     return operations.find(op => op.type === type && (id ? op.id === id : true))
   }
 
-  async function loadTickets() {
+  const loadTickets = useCallback(async () => {
+    setLoading(true)
     try {
-      updateOperationState('load', 'loading')
       const { data, error } = await supabase
         .from('tickets')
         .select('*')
         .order('created_at', { ascending: false })
-
-      if (error) throw error
       
+      if (error) throw error
       setTickets(data || [])
-      updateOperationState('load', 'success')
-    } catch (error) {
-      console.error('Error loading tickets:', error)
-      updateOperationState('load', 'error', undefined, 'Failed to load tickets. Please try again.')
+    } catch (err) {
+      console.error('Error loading tickets:', err)
+    } finally {
+      setLoading(false)
     }
-  }
+  }, [supabase])
 
-  async function loadUsers() {
+  const loadUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .order('email')
-
+        .from('users')
+        .select('*')
+      
       if (error) throw error
-
       setUsers(data || [])
-    } catch (error) {
-      console.error('Error loading users:', error)
+    } catch (err) {
+      console.error('Error loading users:', err)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    loadTickets()
+    loadUsers()
+  }, [loadTickets, loadUsers])
 
   async function createTicket(data: CreateTicketDTO) {
     try {
@@ -339,13 +343,8 @@ export function TicketsProvider({
     }
   }
 
-  useEffect(() => {
-    loadTickets()
-    loadUsers()
-  }, [])
-
   const value = {
-    tickets,
+    tickets: filteredAndSortedTickets,
     filteredTickets: filteredAndSortedTickets,
     operations,
     filters,
@@ -363,7 +362,8 @@ export function TicketsProvider({
     deleteTicket,
     getOperationState,
     bulkUpdateTickets,
-    assignTickets
+    assignTickets,
+    loading
   }
 
   return (

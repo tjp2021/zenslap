@@ -1,4 +1,3 @@
-import { useCallback } from 'react'
 import { useEditor } from '../../EditorContext'
 import { ToolbarButtonProps } from '../../RichTextEditor.types'
 import { cn } from '@/lib/utils'
@@ -9,8 +8,6 @@ import {
   Italic,
   List,
   ListOrdered,
-  Link,
-  Image,
   Heading1,
   Heading2,
   Quote,
@@ -45,39 +42,16 @@ function ToolbarButton({
 }
 
 export function Toolbar() {
-  const { editor } = useEditor()
+  const editor = useEditor()
+  if (!editor) return null
 
-  const toggleBold = useCallback(() => {
-    editor?.chain().focus().toggleBold().run()
-  }, [editor])
-
-  const toggleItalic = useCallback(() => {
-    editor?.chain().focus().toggleItalic().run()
-  }, [editor])
-
-  const toggleBulletList = useCallback(() => {
-    editor?.chain().focus().toggleBulletList().run()
-  }, [editor])
-
-  const toggleOrderedList = useCallback(() => {
-    editor?.chain().focus().toggleOrderedList().run()
-  }, [editor])
-
-  const toggleH1 = useCallback(() => {
-    editor?.chain().focus().toggleHeading({ level: 1 }).run()
-  }, [editor])
-
-  const toggleH2 = useCallback(() => {
-    editor?.chain().focus().toggleHeading({ level: 2 }).run()
-  }, [editor])
-
-  const toggleBlockquote = useCallback(() => {
-    editor?.chain().focus().toggleBlockquote().run()
-  }, [editor])
-
-  if (!editor) {
-    return null
-  }
+  const toggleBold = () => editor.chain().focus().toggleBold().run()
+  const toggleItalic = () => editor.chain().focus().toggleItalic().run()
+  const toggleH1 = () => editor.chain().focus().toggleHeading({ level: 1 }).run()
+  const toggleH2 = () => editor.chain().focus().toggleHeading({ level: 2 }).run()
+  const toggleBulletList = () => editor.chain().focus().toggleBulletList().run()
+  const toggleOrderedList = () => editor.chain().focus().toggleOrderedList().run()
+  const toggleBlockquote = () => editor.chain().focus().toggleBlockquote().run()
 
   return (
     <div

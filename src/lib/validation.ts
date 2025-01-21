@@ -95,13 +95,9 @@ export const createTicketSchema = z.object({
     description: z.string()
         .min(1, 'Description is required')
         .max(10000, 'Description cannot exceed 10000 characters'),
-    status: z.custom<TicketStatus>((val) => TICKET_STATUSES.includes(val as any), {
-        message: 'Invalid ticket status'
-    }).optional(),
-    priority: z.custom<TicketPriority>((val) => TICKET_PRIORITIES.includes(val as any), {
-        message: 'Invalid ticket priority'
-    }).optional(),
-    metadata: z.record(z.any()).optional(),
+    status: z.enum(TICKET_STATUSES).optional(),
+    priority: z.enum(TICKET_PRIORITIES).optional(),
+    metadata: z.record(z.unknown()).optional(),
     tags: z.array(uuidSchema).optional(),
     assignee: uuidSchema.nullable().optional()
 })

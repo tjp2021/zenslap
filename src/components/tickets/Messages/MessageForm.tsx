@@ -12,28 +12,28 @@ interface MessageFormProps {
 export function MessageForm({ onSubmit, isLoading, className }: MessageFormProps) {
     const [content, setContent] = useState('')
 
-    const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    const handleSubmitForm = useCallback(async (e: React.FormEvent) => {
         e.preventDefault()
         if (!content.trim() || isLoading) return
 
         try {
             await onSubmit(content)
             setContent('')
-        } catch (error) {
-            // Error is handled by parent component
+        } catch {
+            // Handle error silently - UI already shows failure states
         }
     }, [content, isLoading, onSubmit])
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
-            handleSubmit(e as unknown as React.FormEvent)
+            handleSubmitForm(e as unknown as React.FormEvent)
         }
-    }, [handleSubmit])
+    }, [handleSubmitForm])
 
     return (
         <form 
-            onSubmit={handleSubmit} 
+            onSubmit={handleSubmitForm} 
             className={cn('flex gap-2 items-end', className)}
         >
             <Textarea

@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 
 // List of public routes that don't require authentication
 const PUBLIC_ROUTES = [
+  '/login',
   '/auth/callback',
   '/auth/signup',
   '/auth/login',
@@ -11,51 +12,60 @@ const PUBLIC_ROUTES = [
 ]
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value
+          },
+          set(name: string, value: string, options: Record<string, unknown>) {
+            NextResponse.next().cookies.set({
+              name,
+              value,
+              ...options,
+            })
+          },
+          remove(name: string, options: Record<string, unknown>) {
+            NextResponse.next().cookies.set({
+              name,
+              value: '',
+              ...options,
+            })
+          },
+        },
+      }
+    )
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: any) {
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: any) {
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
-      },
+    // Auth condition already satisfied
+    if (session) {
+      return NextResponse.next()
     }
-  )
 
-  const { data: { session } } = await supabase.auth.getSession()
+    // Check if the request is for a public route
+    const isPublicRoute = PUBLIC_ROUTES.some(pattern => 
+      new RegExp(`^${pattern.replace('*', '.*')}$`).test(request.nextUrl.pathname)
+    )
 
-  // If user is not signed in and the current path is not /auth/*, redirect to /auth/login
-  if (!session && !request.nextUrl.pathname.startsWith('/auth/')) {
-    return NextResponse.redirect(new URL('/auth/login', request.url))
+    if (isPublicRoute) {
+      return NextResponse.next()
+    }
+
+    // Redirect to login if no session
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/login'
+    redirectUrl.searchParams.set('redirectedFrom', request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
+
+  } catch {
+    // Handle errors
+    return NextResponse.redirect(new URL('/login', request.nextUrl))
   }
-
-  // If user is signed in and the current path is /auth/*, redirect to /tickets
-  if (session && request.nextUrl.pathname.startsWith('/auth/')) {
-    return NextResponse.redirect(new URL('/tickets', request.url))
-  }
-
-  return response
 }
 
 export const config = {

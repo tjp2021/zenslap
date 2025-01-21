@@ -44,7 +44,7 @@ function EditableNote({
         try {
             await onUpdate(id, editedContent)
             setIsEditing(false)
-        } catch (error) {
+        } catch {
             // Error is handled by parent component
             setEditedContent(content)
         }

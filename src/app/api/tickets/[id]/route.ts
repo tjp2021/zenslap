@@ -23,7 +23,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
 
     return NextResponse.json({ data })
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to fetch ticket' },
       { status: 500 }
@@ -38,7 +38,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const body = await request.json()
     
     const validatedData = updateTicketSchema.parse({ ...body, id })
-    const { data, error } = await ticketService.update(validatedData)
+    const { data, error } = await ticketService.update(id, validatedData)
 
     if (error) {
       return NextResponse.json(
@@ -76,7 +76,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     }
 
     return new NextResponse(null, { status: 204 })
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: 'Failed to delete ticket' },
       { status: 500 }

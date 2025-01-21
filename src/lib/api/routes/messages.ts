@@ -1,5 +1,4 @@
 import getSupabaseClient from '@/lib/supabase/client'
-import type { TicketMessage } from '@/lib/types'
 import { createTicketMessageSchema, ticketMessageSchema } from '@/lib/validation'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'

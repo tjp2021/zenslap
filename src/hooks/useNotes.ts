@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { InternalNote } from '@/lib/types'
 import { internalNotes } from '@/lib/api/routes/internal-notes'
 
 interface UseNotesOptions {

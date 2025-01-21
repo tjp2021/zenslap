@@ -3,12 +3,14 @@ export interface WebhookConfig {
   id: string
   name: string
   url: string
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   events: WebhookEvent[]
   isActive: boolean
   secret: string
   createdAt: string
   updatedAt: string
   headers?: Record<string, string>
+  body?: Record<string, unknown>
   retryConfig?: RetryConfig
 }
 
@@ -88,7 +90,7 @@ export interface AIConfig {
   temperature?: number
   maxTokens?: number
   apiKey?: string
-  options?: Record<string, any>
+  options?: Record<string, unknown>
 }
 
 export interface AIAnalysis {
@@ -110,4 +112,11 @@ export type AIAnalysisType =
   | 'priority_suggestion'
   | 'category_detection'
   | 'response_suggestion'
-  | 'urgency_detection' 
+  | 'urgency_detection'
+
+export interface WorkflowConfig {
+  steps: Array<{
+    type: string
+    config: Record<string, unknown>
+  }>
+} 

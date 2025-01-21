@@ -5,7 +5,6 @@ import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { createBrowserClient } from '@supabase/ssr'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import type { Database } from '@/lib/supabase/types/supabase'
 
 export default function AuthUI() {
   const supabase = createBrowserClient(
@@ -17,7 +16,7 @@ export default function AuthUI() {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         router.refresh()
         router.push('/tickets')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Ticket, TICKET_PRIORITIES, TICKET_STATUSES } from '@/lib/types'
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Trash2, Clock } from "lucide-react"
-import { supabase } from '@/lib/supabase/client'
+import { createBrowserClient } from '@supabase/ssr'
 import { updateTicketSchema } from '@/lib/validation/tickets'
 import {
   AlertDialog,
@@ -46,7 +46,6 @@ interface TicketDetailsProps {
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
   const [ticket, setTicket] = useState<Ticket | null>(null)
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -54,30 +53,12 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   const [deleting, setDeleting] = useState(false)
   const [history, setHistory] = useState<TicketHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
-  useEffect(() => {
-    loadTicket()
-    loadHistory()
-
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('tickets')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'tickets',
-        filter: `id=eq.${id}` 
-      }, (payload) => {
-        setTicket(payload.new as Ticket)
-      })
-      .subscribe()
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [id])
-
-  async function loadTicket() {
+  const loadTicket = useCallback(async () => {
     try {
       const { data, error: fetchError } = await supabase
         .from('tickets')
@@ -90,14 +71,12 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       } else {
         setTicket(data)
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load ticket')
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [supabase, id])
 
-  async function loadHistory() {
+  const loadHistory = useCallback(async () => {
     setLoadingHistory(true)
     try {
       const { data, error: fetchError } = await supabase
@@ -111,12 +90,36 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       } else {
         setHistory(data || [])
       }
-    } catch (err) {
+    } catch {
       console.error('Failed to load ticket history')
     } finally {
       setLoadingHistory(false)
     }
-  }
+  }, [supabase, id])
+
+  useEffect(() => {
+    loadTicket()
+    loadHistory()
+  }, [loadTicket, loadHistory])
+
+  useEffect(() => {
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('tickets')
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'tickets',
+        filter: `id=eq.${id}` 
+      }, (payload: { new: Ticket }) => {
+        setTicket(payload.new)
+      })
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [id, supabase])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -179,7 +182,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       } else {
         router.push('/tickets')
       }
-    } catch (err) {
+    } catch {
       setError('Failed to delete ticket')
     } finally {
       setDeleting(false)

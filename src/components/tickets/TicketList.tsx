@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useTickets, useTicketOperation } from '@/lib/context/tickets'
+import { useTickets } from '@/lib/context/tickets'
 import { Input } from "@/components/ui/input"
 import { TICKET_STATUSES, TICKET_PRIORITIES } from '@/lib/types'
 import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus, AlertCircle } from "lucide-react"
@@ -36,16 +36,16 @@ interface SortableColumnProps {
 }
 
 function SortableColumn({ field, children, className }: SortableColumnProps) {
-  const { sort, setSort } = useTickets()
+  const { sort, setSort: setSortContext } = useTickets()
   const isActive = sort.field === field
   
   const handleClick = () => {
     if (isActive) {
       // Toggle direction if already sorting by this field
-      setSort(field, sort.direction === 'asc' ? 'desc' : 'asc')
+      setSortContext(field, sort.direction === 'asc' ? 'desc' : 'asc')
     } else {
       // Default to descending for new sort field
-      setSort(field, 'desc')
+      setSortContext(field, 'desc')
     }
   }
 
@@ -83,8 +83,6 @@ export default function TicketList() {
   } = useTicketList(currentPage)
   const { users } = useUsers()
   const { 
-    updateTicket, 
-    deleteTicket, 
     bulkUpdateTickets, 
     assignTickets,
     isBulkUpdating,
@@ -92,7 +90,7 @@ export default function TicketList() {
     bulkError,
     assignError
   } = useTicketMutations()
-  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+  const [localSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
     field: 'created_at',
     direction: 'desc'
   })
@@ -126,22 +124,32 @@ export default function TicketList() {
 
     // Apply sorting
     result.sort((a, b) => {
-      const aValue = a[sort.field as keyof typeof a]
-      const bValue = b[sort.field as keyof typeof b]
+      const aValue = a[localSort.field as keyof typeof a]
+      const bValue = b[localSort.field as keyof typeof b]
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sort.direction === 'asc' 
+        return localSort.direction === 'asc' 
           ? aValue.localeCompare(bValue)
           : bValue.localeCompare(aValue)
       }
       
-      return sort.direction === 'asc' 
-        ? (aValue as any) - (bValue as any)
-        : (bValue as any) - (aValue as any)
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return localSort.direction === 'asc' 
+          ? aValue - bValue
+          : bValue - aValue
+      }
+
+      if (aValue instanceof Date && bValue instanceof Date) {
+        return localSort.direction === 'asc'
+          ? aValue.getTime() - bValue.getTime()
+          : bValue.getTime() - aValue.getTime()
+      }
+
+      return 0
     })
 
     return result
-  }, [tickets, statusFilter, priorityFilter, searchTerm, sort])
+  }, [tickets, statusFilter, priorityFilter, searchTerm, localSort])
 
   // Bulk selection handlers
   const handleSelectAll = () => {

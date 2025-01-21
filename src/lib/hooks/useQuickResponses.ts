@@ -7,11 +7,6 @@ import {
   updateResponse,
   deleteResponse,
 } from '@/lib/api/quick-responses'
-import type {
-  CreateResponseCategoryData,
-  CreateQuickResponseData,
-  UpdateQuickResponseData,
-} from '@/lib/types/quick-responses'
 
 // Query keys
 const CATEGORIES_KEY = ['response-categories']
@@ -79,4 +74,8 @@ export function useDeleteResponse() {
       queryClient.invalidateQueries({ queryKey: RESPONSES_KEY })
     },
   })
+}
+
+interface UseQuickResponsesOptions {
+    onError?: (error: Error) => void
 } 
