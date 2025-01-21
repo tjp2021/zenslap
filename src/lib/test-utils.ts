@@ -24,8 +24,8 @@ export function createMockRouter(config: MockRouterConfig = {}) {
 	return { req: mockReq, res: mockRes }
 }
 
-// Mock data generators
-export const createMockTicket = (overrides: Partial<TicketBase> = {}): TicketBase => ({
+// Mock data
+export const mockTicket: TicketBase = {
 	id: '123',
 	title: 'Test Ticket',
 	description: 'Test Description',
@@ -33,11 +33,16 @@ export const createMockTicket = (overrides: Partial<TicketBase> = {}): TicketBas
 	priority: 'medium',
 	metadata: {},
 	created_at: '2025-01-20T21:05:10.183Z',
-	updated_at: '2025-01-20T21:05:10.183Z',
+	updated_at: '2025-01-20T21:05:10.183Z'
+}
+
+// Mock data generators
+export const createMockTicket = (overrides: Partial<TicketBase> = {}): TicketBase => ({
+	...mockTicket,
 	...overrides
 })
 
-export const createMockTicketDTO = (overrides?: Partial<CreateTicketDTO>): CreateTicketDTO => ({
+export const createMockTicketDTO = (overrides: Partial<CreateTicketDTO> = {}): CreateTicketDTO => ({
 	title: 'Test Ticket',
 	description: 'Test Description',
 	status: 'open',
@@ -46,7 +51,7 @@ export const createMockTicketDTO = (overrides?: Partial<CreateTicketDTO>): Creat
 	...overrides
 })
 
-export const createMockUpdateTicketDTO = (id: string, overrides?: Partial<Omit<UpdateTicketDTO, 'id'>>): UpdateTicketDTO => ({
+export const createMockUpdateTicketDTO = (id: string, overrides: Partial<Omit<UpdateTicketDTO, 'id'>> = {}): UpdateTicketDTO => ({
 	id,
 	title: 'Updated Ticket',
 	description: 'Updated Description',
@@ -65,7 +70,7 @@ export const createMockSupabaseResponse = <T>(data: T | null = null, error: Erro
 
 // Test assertion helpers
 export const expectSuccessResponse = <T>(
-	result: { data: T | null; error: string | null },
+	result: { data: T | null; error: Error | string | null },
 	expectedData: T
 ) => {
 	expect(result.data).toEqual(expectedData)
@@ -73,9 +78,9 @@ export const expectSuccessResponse = <T>(
 }
 
 export const expectErrorResponse = (
-	result: { data: unknown | null; error: string | null },
+	result: { data: unknown | null; error: Error | string | null },
 	expectedError: string
 ) => {
 	expect(result.data).toBeNull()
-	expect(result.error).toBe(expectedError)
+	expect(result.error instanceof Error ? result.error.message : result.error).toBe(expectedError)
 } 

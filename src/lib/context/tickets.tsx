@@ -4,6 +4,7 @@ import { createContext, useContext, ReactNode, useState, useEffect, useMemo } fr
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types/supabase'
 import type { Ticket, CreateTicketDTO, UpdateTicketDTO } from '@/lib/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 type OperationType = 'create' | 'update' | 'delete' | 'load' | 'bulk_update' | 'assign'
 type OperationStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -68,13 +69,20 @@ const defaultSort: SortConfig = {
 
 const TicketsContext = createContext<TicketsContextType | undefined>(undefined)
 
-export function TicketsProvider({ children }: { children: ReactNode }) {
+export function TicketsProvider({ 
+  children,
+  supabaseClient
+}: { 
+  children: ReactNode
+  supabaseClient?: SupabaseClient
+}) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [users, setUsers] = useState<{ id: string; email: string }[]>([])
   const [operations, setOperations] = useState<OperationState[]>([])
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters)
   const [sort, setSort] = useState<SortConfig>(defaultSort)
-  const supabase = createClientComponentClient<Database>()
+  const defaultClient = createClientComponentClient<Database>()
+  const supabase = supabaseClient || defaultClient
 
   // Memoized filtered and sorted tickets
   const filteredAndSortedTickets = useMemo(() => {
@@ -198,6 +206,7 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: false })
 
       if (error) throw error
+      
       setTickets(data || [])
       updateOperationState('load', 'success')
     } catch (error) {
@@ -214,6 +223,7 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
         .order('email')
 
       if (error) throw error
+
       setUsers(data || [])
     } catch (error) {
       console.error('Error loading users:', error)
@@ -234,6 +244,7 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
       await loadTickets()
+      
       updateOperationState('create', 'success')
       return { error: null }
     } catch (error) {
@@ -246,19 +257,16 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
 
   async function updateTicket(data: UpdateTicketDTO) {
     try {
-      const { id, ...updates } = data
-      updateOperationState('update', 'loading', id)
+      updateOperationState('update', 'loading', data.id)
       const { error } = await supabase
         .from('tickets')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id)
+        .update(data)
+        .eq('id', data.id)
 
       if (error) throw error
       await loadTickets()
-      updateOperationState('update', 'success', id)
+      
+      updateOperationState('update', 'success', data.id)
       return { error: null }
     } catch (error) {
       console.error('Error updating ticket:', error)
@@ -278,6 +286,7 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
       await loadTickets()
+      
       updateOperationState('delete', 'success', id)
       return { error: null }
     } catch (error) {
@@ -291,26 +300,19 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
   async function bulkUpdateTickets(ids: string[], updates: Partial<UpdateTicketDTO>) {
     try {
       updateOperationState('bulk_update', 'loading')
-      
-      // Update each ticket in sequence
-      for (const id of ids) {
-        const { error } = await supabase
-          .from('tickets')
-          .update({
-            ...updates,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id)
+      const { error } = await supabase
+        .from('tickets')
+        .update(updates)
+        .in('id', ids)
 
-        if (error) throw error
-      }
-
+      if (error) throw error
       await loadTickets()
+      
       updateOperationState('bulk_update', 'success')
       return { error: null }
     } catch (error) {
       console.error('Error bulk updating tickets:', error)
-      const errorMessage = 'Failed to update some tickets. Please try again.'
+      const errorMessage = 'Failed to update tickets. Please try again.'
       updateOperationState('bulk_update', 'error', undefined, errorMessage)
       return { error: errorMessage }
     }
@@ -319,21 +321,14 @@ export function TicketsProvider({ children }: { children: ReactNode }) {
   async function assignTickets(ids: string[], assignee: string | null) {
     try {
       updateOperationState('assign', 'loading')
-      
-      // Update each ticket's assignee
-      for (const id of ids) {
-        const { error } = await supabase
-          .from('tickets')
-          .update({
-            assigned_to: assignee,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id)
+      const { error } = await supabase
+        .from('tickets')
+        .update({ assignee })
+        .in('id', ids)
 
-        if (error) throw error
-      }
-
+      if (error) throw error
       await loadTickets()
+      
       updateOperationState('assign', 'success')
       return { error: null }
     } catch (error) {

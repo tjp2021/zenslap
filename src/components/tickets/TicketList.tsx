@@ -7,8 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useTickets, useTicketOperation } from '@/lib/context/tickets'
 import { Input } from "@/components/ui/input"
 import { TICKET_STATUSES, TICKET_PRIORITIES } from '@/lib/types'
-import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus } from "lucide-react"
-import { useState } from "react"
+import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus, AlertCircle } from "lucide-react"
+import { useState, useMemo, useCallback } from "react"
 import {
   Select,
   SelectContent,
@@ -16,6 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { SLAIndicator } from './SLAIndicator'
+import { useTicketList, useTicketMutations, useUsers } from '@/hooks/useTicketData'
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 interface SortableColumnProps {
   field: 'created_at' | 'updated_at' | 'priority' | 'status' | 'title'
@@ -60,31 +72,76 @@ function SortableColumn({ field, children, className }: SortableColumnProps) {
   )
 }
 
-export default function TicketList() {
+export function TicketList() {
+  const [currentPage, setCurrentPage] = useState(1)
   const { 
-    filteredTickets, 
-    loadTickets,
-    filters,
-    setStatusFilter,
-    setPriorityFilter,
-    setSearchFilter,
-    clearFilters,
-    bulkUpdateTickets,
+    tickets, 
+    isLoading,
+    totalCount,
+    totalPages,
+    pageSize 
+  } = useTicketList(currentPage)
+  const { users } = useUsers()
+  const { 
+    updateTicket, 
+    deleteTicket, 
+    bulkUpdateTickets, 
     assignTickets,
-    users
-  } = useTickets()
-  const { isLoading, isError, error } = useTicketOperation('load')
-  const { 
-    isLoading: isBulkUpdating,
-    isError: isBulkError,
-    error: bulkError 
-  } = useTicketOperation('bulk_update')
-  const {
-    isLoading: isAssigning,
-    isError: isAssignError,
-    error: assignError
-  } = useTicketOperation('assign')
+    isBulkUpdating,
+    isAssigning,
+    bulkError,
+    assignError
+  } = useTicketMutations()
+  const [sort, setSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+    field: 'created_at',
+    direction: 'desc'
+  })
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set())
+
+  // Filter and sort tickets
+  const filteredTickets = useMemo(() => {
+    let result = [...tickets]
+
+    // Apply status filter
+    if (statusFilter.length > 0) {
+      result = result.filter(ticket => statusFilter.includes(ticket.status))
+    }
+
+    // Apply priority filter
+    if (priorityFilter.length > 0) {
+      result = result.filter(ticket => priorityFilter.includes(ticket.priority))
+    }
+
+    // Apply search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase()
+      result = result.filter(ticket => 
+        ticket.title.toLowerCase().includes(search) ||
+        ticket.description?.toLowerCase().includes(search)
+      )
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
+      const aValue = a[sort.field as keyof typeof a]
+      const bValue = b[sort.field as keyof typeof b]
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sort.direction === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue)
+      }
+      
+      return sort.direction === 'asc' 
+        ? (aValue as any) - (bValue as any)
+        : (bValue as any) - (aValue as any)
+    })
+
+    return result
+  }, [tickets, statusFilter, priorityFilter, searchTerm, sort])
 
   // Bulk selection handlers
   const handleSelectAll = () => {
@@ -121,24 +178,20 @@ export default function TicketList() {
     }
   }
 
-  if (isLoading) {
-    return <div>Loading tickets...</div>
+  const clearFilters = useCallback(() => {
+    setStatusFilter([])
+    setPriorityFilter([])
+    setSearchTerm('')
+  }, [])
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    // Scroll to top of list
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  if (isError) {
-    return (
-      <div className="p-4 text-red-500 bg-red-50 rounded-md">
-        {error}
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={loadTickets}
-          className="ml-4"
-        >
-          Retry
-        </Button>
-      </div>
-    )
+  if (isLoading) {
+    return <div>Loading tickets...</div>
   }
 
   return (
@@ -198,8 +251,8 @@ export default function TicketList() {
             <Input
               placeholder="Search tickets..."
               className="w-64"
-              value={filters.search || ''}
-              onChange={(e) => setSearchFilter(e.target.value)}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
             <Button variant="outline" size="sm" onClick={clearFilters}>
               Clear Filters
@@ -207,16 +260,18 @@ export default function TicketList() {
           </div>
         </div>
 
-        {isBulkError && (
-          <div className="p-4 text-red-500 bg-red-50">
-            {bulkError}
-          </div>
+        {bulkError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{bulkError}</AlertDescription>
+          </Alert>
         )}
-
-        {isAssignError && (
-          <div className="p-4 text-red-500 bg-red-50">
-            {assignError}
-          </div>
+        
+        {assignError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{assignError}</AlertDescription>
+          </Alert>
         )}
 
         {/* Filter Controls */}
@@ -227,16 +282,14 @@ export default function TicketList() {
               {TICKET_STATUSES.map(status => (
                 <Badge
                   key={status}
-                  variant={filters.selected.status.has(status) ? "default" : "outline"}
+                  variant={statusFilter.includes(status) ? "default" : "outline"}
                   className="cursor-pointer"
                   onClick={() => {
-                    const newStatuses = new Set(filters.selected.status)
-                    if (newStatuses.has(status)) {
-                      newStatuses.delete(status)
+                    if (statusFilter.includes(status)) {
+                      setStatusFilter(statusFilter.filter(s => s !== status))
                     } else {
-                      newStatuses.add(status)
+                      setStatusFilter([...statusFilter, status])
                     }
-                    setStatusFilter(Array.from(newStatuses))
                   }}
                 >
                   {status}
@@ -251,16 +304,14 @@ export default function TicketList() {
               {TICKET_PRIORITIES.map(priority => (
                 <Badge
                   key={priority}
-                  variant={filters.selected.priority.has(priority) ? "default" : "outline"}
+                  variant={priorityFilter.includes(priority) ? "default" : "outline"}
                   className="cursor-pointer"
                   onClick={() => {
-                    const newPriorities = new Set(filters.selected.priority)
-                    if (newPriorities.has(priority)) {
-                      newPriorities.delete(priority)
+                    if (priorityFilter.includes(priority)) {
+                      setPriorityFilter(priorityFilter.filter(p => p !== priority))
                     } else {
-                      newPriorities.add(priority)
+                      setPriorityFilter([...priorityFilter, priority])
                     }
-                    setPriorityFilter(Array.from(newPriorities))
                   }}
                 >
                   {priority}
@@ -281,13 +332,13 @@ export default function TicketList() {
                   onChange={handleSelectAll}
                 />
               </TableHead>
+              <SortableColumn field="title">Title</SortableColumn>
               <SortableColumn field="status">Status</SortableColumn>
-              <TableHead>ID</TableHead>
-              <SortableColumn field="title" className="max-w-[500px]">Subject</SortableColumn>
-              <TableHead>Requester</TableHead>
-              <SortableColumn field="updated_at">Last Updated</SortableColumn>
               <SortableColumn field="priority">Priority</SortableColumn>
-              <TableHead>Assignee</TableHead>
+              <TableHead>SLA</TableHead>
+              <SortableColumn field="created_at">Created</SortableColumn>
+              <SortableColumn field="updated_at">Updated</SortableColumn>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -301,6 +352,7 @@ export default function TicketList() {
                     onChange={() => handleSelectTicket(ticket.id)}
                   />
                 </TableCell>
+                <TableCell>{ticket.title}</TableCell>
                 <TableCell>
                   <Badge
                     variant="secondary"
@@ -315,22 +367,105 @@ export default function TicketList() {
                     {ticket.status}
                   </Badge>
                 </TableCell>
-                <TableCell>#{ticket.id}</TableCell>
-                <TableCell className="max-w-[500px] truncate">{ticket.title}</TableCell>
-                <TableCell>{ticket.created_by}</TableCell>
                 <TableCell>
-                  {new Date(ticket.updated_at || ticket.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="capitalize">
+                  <Badge variant={
+                    ticket.priority === 'high' ? 'destructive' :
+                    ticket.priority === 'medium' ? 'secondary' :
+                    'default'
+                  }>
                     {ticket.priority}
                   </Badge>
                 </TableCell>
-                <TableCell>{ticket.assigned_to || 'Unassigned'}</TableCell>
+                <TableCell>
+                  <SLAIndicator ticket={ticket} />
+                </TableCell>
+                <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
+                <TableCell>{new Date(ticket.updated_at).toLocaleString()}</TableCell>
+                <TableCell>
+                  {/* ... existing actions ... */}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+
+        {/* Pagination Controls */}
+        <div className="py-4 px-4 border-t">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} tickets
+            </div>
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1} 
+                  />
+                </PaginationItem>
+                
+                {/* First page */}
+                <PaginationItem>
+                  <PaginationLink
+                    onClick={() => handlePageChange(1)}
+                    isActive={currentPage === 1}
+                  >
+                    1
+                  </PaginationLink>
+                </PaginationItem>
+
+                {/* Show ellipsis if needed */}
+                {currentPage > 3 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+
+                {/* Pages around current page */}
+                {Array.from({ length: 3 }, (_, i) => {
+                  const page = currentPage - 1 + i
+                  if (page <= 1 || page >= totalPages) return null
+                  return (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        onClick={() => handlePageChange(page)}
+                        isActive={currentPage === page}
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  )
+                })}
+
+                {/* Show ellipsis if needed */}
+                {currentPage < totalPages - 2 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+
+                {/* Last page */}
+                {totalPages > 1 && (
+                  <PaginationItem>
+                    <PaginationLink
+                      onClick={() => handlePageChange(totalPages)}
+                      isActive={currentPage === totalPages}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                )}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
