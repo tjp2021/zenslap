@@ -1,12 +1,14 @@
-import { useCallback, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Tag } from '@/lib/types'
-import { tags } from '@/lib/api/routes/tags'
+import { useTags } from '@/hooks/useTags'
 import { TagList } from './TagList'
 import { TagForm } from './TagForm'
-import { ErrorBoundary } from '@/components/ui/error-boundary'
-import { Alert } from '@/components/ui/alert'
-import { LoadingOverlay } from '@/components/ui/LoadingOverlay'
+import {
+    Alert,
+    AlertDescription,
+    ErrorBoundary,
+    LoadingSpinner
+} from '@/components/ui'
 
 interface TagManagerProps {
     ticketId?: string
@@ -17,77 +19,55 @@ interface TagManagerProps {
 
 export function TagManager({ ticketId, readOnly = false, onTagsChange, className }: TagManagerProps) {
     const [error, setError] = useState<string | null>(null)
-    const queryClient = useQueryClient()
 
-    // Fetch all tags for selection
-    const { data: allTags, isLoading: isLoadingAll } = useQuery({
-        queryKey: ['tags'],
-        queryFn: async () => {
-            const result = await tags.getAll()
-            if (result.error) throw result.error
-            return result.data || []
+    const {
+        allTags,
+        ticketTags,
+        isLoading,
+        isCreating,
+        isDeleting,
+        createTag,
+        deleteTag,
+        associateTag,
+        dissociateTag
+    } = useTags({
+        ticketId,
+        onError: (err: Error) => setError(err.message)
+    })
+
+    // Handle tag selection changes
+    const handleTagsChange = async (selectedTags: Tag[]) => {
+        if (!ticketId) return
+
+        try {
+            // Find tags to add and remove
+            const currentTagIds = new Set(ticketTags?.map(t => t.id) || [])
+            const selectedTagIds = new Set(selectedTags.map(t => t.id))
+
+            // Tags to add
+            for (const tag of selectedTags) {
+                if (!currentTagIds.has(tag.id)) {
+                    await associateTag({ ticketId, tagId: tag.id })
+                }
+            }
+
+            // Tags to remove
+            for (const tag of ticketTags || []) {
+                if (!selectedTagIds.has(tag.id)) {
+                    await dissociateTag({ ticketId, tagId: tag.id })
+                }
+            }
+
+            onTagsChange?.(selectedTags)
+        } catch (err) {
+            if (err instanceof Error) {
+                setError(err.message)
+            }
         }
-    })
+    }
 
-    // Fetch ticket-specific tags if ticketId is provided
-    const { data: ticketTags, isLoading: isLoadingTicket } = useQuery({
-        queryKey: ['tags', ticketId],
-        queryFn: async () => {
-            if (!ticketId) return []
-            const result = await tags.getByTicketId(ticketId)
-            if (result.error) throw result.error
-            return result.data || []
-        },
-        enabled: !!ticketId
-    })
-
-    // Create tag mutation
-    const createTag = useMutation({
-        mutationFn: async (data: { name: string; color: string }) => {
-            const result = await tags.create(data)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tags'] })
-            setError(null)
-        },
-        onError: (err: Error) => {
-            setError(err.message)
-        }
-    })
-
-    // Delete tag mutation
-    const deleteTag = useMutation({
-        mutationFn: async (id: string) => {
-            const result = await tags.delete(id)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tags'] })
-            setError(null)
-        },
-        onError: (err: Error) => {
-            setError(err.message)
-        }
-    })
-
-    const handleCreateTag = useCallback(async (data: { name: string; color: string }) => {
-        await createTag.mutateAsync(data)
-    }, [createTag])
-
-    const handleDeleteTag = useCallback(async (id: string) => {
-        await deleteTag.mutateAsync(id)
-    }, [deleteTag])
-
-    // Notify parent of changes
-    const handleTagsChange = useCallback((tags: Tag[]) => {
-        onTagsChange?.(tags)
-    }, [onTagsChange])
-
-    if (isLoadingAll || isLoadingTicket) {
-        return <LoadingOverlay />
+    if (isLoading) {
+        return <LoadingSpinner />
     }
 
     return (
@@ -95,14 +75,14 @@ export function TagManager({ ticketId, readOnly = false, onTagsChange, className
             <div className={className}>
                 {error && (
                     <Alert variant="destructive" className="mb-4">
-                        {error}
+                        <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
                 
                 {!readOnly && (
                     <TagForm 
-                        onSubmit={handleCreateTag} 
-                        isLoading={createTag.isPending}
+                        onSubmit={createTag} 
+                        isLoading={isCreating}
                         className="mb-4"
                     />
                 )}
@@ -110,9 +90,9 @@ export function TagManager({ ticketId, readOnly = false, onTagsChange, className
                 <TagList
                     tags={allTags || []}
                     selectedTags={ticketTags || []}
-                    onDelete={!readOnly ? handleDeleteTag : undefined}
+                    onDelete={!readOnly ? deleteTag : undefined}
                     onChange={!readOnly ? handleTagsChange : undefined}
-                    isDeleting={deleteTag.isPending}
+                    isDeleting={isDeleting}
                 />
             </div>
         </ErrorBoundary>

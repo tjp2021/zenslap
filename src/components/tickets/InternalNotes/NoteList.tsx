@@ -1,9 +1,7 @@
 import { useCallback, useState } from 'react'
 import { InternalNote } from '@/lib/types'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, Button, Textarea } from '@/components/ui'
 import { Pencil, Trash2, X, Check } from 'lucide-react'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 
@@ -41,11 +39,8 @@ function EditableNote({
     const canModify = currentUserId === created_by
 
     const handleUpdate = useCallback(async () => {
-        if (!onUpdate || editedContent === content) {
-            setIsEditing(false)
-            return
-        }
-
+        if (!onUpdate || editedContent === content || isUpdating) return
+        
         try {
             await onUpdate(id, editedContent)
             setIsEditing(false)
@@ -53,7 +48,7 @@ function EditableNote({
             // Error is handled by parent component
             setEditedContent(content)
         }
-    }, [id, content, editedContent, onUpdate])
+    }, [id, content, editedContent, onUpdate, isUpdating])
 
     const handleCancel = useCallback(() => {
         setIsEditing(false)
@@ -61,9 +56,9 @@ function EditableNote({
     }, [content])
 
     const handleDelete = useCallback(async () => {
-        if (!onDelete) return
+        if (!onDelete || isDeleting) return
         await onDelete(id)
-    }, [id, onDelete])
+    }, [id, onDelete, isDeleting])
 
     return (
         <Card className="p-4">
@@ -73,8 +68,10 @@ function EditableNote({
                         <Textarea
                             value={editedContent}
                             onChange={e => setEditedContent(e.target.value)}
-                            className="min-h-[100px]"
+                            className="min-h-[100px] resize-none"
+                            placeholder="Enter note content..."
                             disabled={isUpdating}
+                            aria-label="Edit note"
                         />
                     ) : (
                         <p className="whitespace-pre-wrap">{content}</p>
@@ -93,18 +90,23 @@ function EditableNote({
                                     size="icon"
                                     onClick={handleUpdate}
                                     disabled={isUpdating || content === editedContent}
+                                    className={cn(
+                                        'hover:bg-primary/20',
+                                        isUpdating && 'opacity-50 cursor-not-allowed'
+                                    )}
                                 >
                                     <Check className="h-4 w-4" />
-                                    <span className="sr-only">Save</span>
+                                    <span className="sr-only">Save note</span>
                                 </Button>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleCancel}
                                     disabled={isUpdating}
+                                    className="hover:bg-destructive/20"
                                 >
                                     <X className="h-4 w-4" />
-                                    <span className="sr-only">Cancel</span>
+                                    <span className="sr-only">Cancel editing</span>
                                 </Button>
                             </>
                         ) : (
@@ -114,19 +116,23 @@ function EditableNote({
                                     size="icon"
                                     onClick={() => setIsEditing(true)}
                                     disabled={isUpdating}
+                                    className="hover:bg-primary/20"
                                 >
                                     <Pencil className="h-4 w-4" />
-                                    <span className="sr-only">Edit</span>
+                                    <span className="sr-only">Edit note</span>
                                 </Button>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleDelete}
                                     disabled={isDeleting}
-                                    className="hover:bg-destructive/20"
+                                    className={cn(
+                                        'hover:bg-destructive/20',
+                                        isDeleting && 'opacity-50 cursor-not-allowed'
+                                    )}
                                 >
                                     <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Delete</span>
+                                    <span className="sr-only">Delete note</span>
                                 </Button>
                             </>
                         )}

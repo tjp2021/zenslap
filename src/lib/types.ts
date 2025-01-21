@@ -18,6 +18,19 @@ export interface Tag {
 	name: string
 	color?: string
 	created_at: string
+	ticket_ids?: string[]
+}
+
+export interface CreateTagData {
+	name: string
+	color?: string
+	ticket_ids?: string[]
+}
+
+export interface UpdateTagData {
+	name?: string
+	color?: string
+	ticket_ids?: string[]
 }
 
 // Internal note interface

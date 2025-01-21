@@ -1,14 +1,13 @@
 import { useCallback } from 'react'
 import { Tag } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge, Button } from '@/components/ui'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TagListProps {
     tags: Tag[]
     selectedTags: Tag[]
-    onDelete?: (id: string) => void
+    onDelete?: (id: string) => Promise<void>
     onChange?: (tags: Tag[]) => void
     isDeleting?: boolean
     className?: string
@@ -35,8 +34,17 @@ export function TagList({
 
     const handleDelete = useCallback((e: React.MouseEvent, id: string) => {
         e.stopPropagation()
+        if (isDeleting) return
         onDelete?.(id)
-    }, [onDelete])
+    }, [onDelete, isDeleting])
+
+    if (!tags.length) {
+        return (
+            <p className={cn('text-sm text-muted-foreground text-center py-4', className)}>
+                No tags available
+            </p>
+        )
+    }
 
     return (
         <div className={cn('flex flex-wrap gap-2', className)}>
@@ -47,7 +55,7 @@ export function TagList({
                         key={tag.id}
                         variant={isSelected ? 'default' : 'outline'}
                         className={cn(
-                            'cursor-pointer select-none',
+                            'cursor-pointer select-none transition-colors',
                             onChange && 'hover:bg-primary/90',
                             tag.color && `bg-[${tag.color}]`
                         )}
@@ -58,7 +66,10 @@ export function TagList({
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-4 w-4 p-0 ml-1 hover:bg-destructive/20"
+                                className={cn(
+                                    'h-4 w-4 p-0 ml-1 hover:bg-destructive/20',
+                                    isDeleting && 'opacity-50 cursor-not-allowed'
+                                )}
                                 onClick={(e) => handleDelete(e, tag.id)}
                                 disabled={isDeleting}
                             >

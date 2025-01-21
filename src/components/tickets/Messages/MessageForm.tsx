@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+import { Button, Textarea } from '@/components/ui'
 import { Send } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface MessageFormProps {
     onSubmit: (content: string) => Promise<void>
@@ -25,7 +24,7 @@ export function MessageForm({ onSubmit, isLoading, className }: MessageFormProps
         }
     }, [content, isLoading, onSubmit])
 
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             handleSubmit(e as unknown as React.FormEvent)
@@ -42,18 +41,25 @@ export function MessageForm({ onSubmit, isLoading, className }: MessageFormProps
                 onChange={e => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
-                className="min-h-[80px] flex-1"
+                className="min-h-[80px] resize-none flex-1"
                 disabled={isLoading}
+                aria-label="Message content"
             />
             <Button
                 type="submit"
                 size="icon"
                 disabled={!content.trim() || isLoading}
-                className="mb-[3px]"
+                className={cn(
+                    'mb-[3px]',
+                    isLoading && 'opacity-50 cursor-not-allowed'
+                )}
             >
                 <Send className="h-4 w-4" />
                 <span className="sr-only">Send message</span>
             </Button>
+            <p className="sr-only">
+                Press Enter to send, Shift + Enter for new line
+            </p>
         </form>
     )
 } 

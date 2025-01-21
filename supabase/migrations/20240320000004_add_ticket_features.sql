@@ -20,7 +20,7 @@ create table if not exists internal_notes (
     id uuid default uuid_generate_v4() primary key,
     ticket_id uuid not null references tickets(id) on delete cascade,
     content text not null,
-    created_by text not null,
+    created_by uuid not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     -- Add indexes for common queries
@@ -33,7 +33,7 @@ create table if not exists ticket_messages (
     ticket_id uuid not null references tickets(id) on delete cascade,
     content text not null,
     type text not null check (type in ('customer', 'agent')),
-    created_by text not null,
+    created_by uuid not null,
     created_at timestamptz not null default now(),
     -- Add indexes for common queries
     constraint fk_ticket foreign key (ticket_id) references tickets(id) on delete cascade
@@ -76,12 +76,12 @@ create policy "Tags are viewable by authenticated users"
 create policy "Tags are insertable by agents and admins"
     on tags for insert
     to authenticated
-    using (auth.jwt() ->> 'role' in ('AGENT', 'ADMIN'));
+    with check (auth.jwt() ->> 'role' in ('agent', 'admin'));
 
 create policy "Tags are updatable by agents and admins"
     on tags for update
     to authenticated
-    using (auth.jwt() ->> 'role' in ('AGENT', 'ADMIN'));
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
 
 -- Ticket tags policies
 create policy "Ticket tags are viewable by authenticated users"
@@ -92,18 +92,18 @@ create policy "Ticket tags are viewable by authenticated users"
 create policy "Ticket tags are manageable by agents and admins"
     on ticket_tags for all
     to authenticated
-    using (auth.jwt() ->> 'role' in ('AGENT', 'ADMIN'));
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
 
 -- Internal notes policies (only visible to agents and admins)
 create policy "Internal notes are viewable by agents and admins"
     on internal_notes for select
     to authenticated
-    using (auth.jwt() ->> 'role' in ('AGENT', 'ADMIN'));
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
 
 create policy "Internal notes are manageable by agents and admins"
     on internal_notes for all
     to authenticated
-    using (auth.jwt() ->> 'role' in ('AGENT', 'ADMIN'));
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
 
 -- Ticket messages policies
 create policy "Ticket messages are viewable by authenticated users"
@@ -122,5 +122,5 @@ create policy "Ticket messages are updatable by creator or admins"
     to authenticated
     using (
         auth.uid() = created_by::uuid
-        or auth.jwt() ->> 'role' = 'ADMIN'
+        or auth.jwt() ->> 'role' = 'admin'
     ); 

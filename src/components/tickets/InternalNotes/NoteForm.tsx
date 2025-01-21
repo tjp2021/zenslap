@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { Button, Textarea } from '@/components/ui'
 import { cn } from '@/lib/utils'
 
 interface NoteFormProps {
@@ -24,22 +23,38 @@ export function NoteForm({ onSubmit, isLoading, className }: NoteFormProps) {
         }
     }, [content, isLoading, onSubmit])
 
+    const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            handleSubmit(e as unknown as React.FormEvent)
+        }
+    }, [handleSubmit])
+
     return (
-        <form onSubmit={handleSubmit} className={cn('space-y-4', className)}>
+        <form 
+            onSubmit={handleSubmit} 
+            className={cn('space-y-4', className)}
+        >
             <Textarea
                 value={content}
                 onChange={e => setContent(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Add an internal note..."
-                className="min-h-[100px]"
+                className="min-h-[100px] resize-none"
                 disabled={isLoading}
+                aria-label="Note content"
             />
-            <Button
-                type="submit"
-                disabled={!content.trim() || isLoading}
-                className="w-full"
-            >
-                {isLoading ? 'Adding...' : 'Add Note'}
-            </Button>
+            <div className="flex justify-end">
+                <Button
+                    type="submit"
+                    disabled={!content.trim() || isLoading}
+                >
+                    {isLoading ? 'Adding...' : 'Add Note'}
+                </Button>
+            </div>
+            <p className="text-xs text-muted-foreground text-right">
+                Press {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} + Enter to submit
+            </p>
         </form>
     )
 } 

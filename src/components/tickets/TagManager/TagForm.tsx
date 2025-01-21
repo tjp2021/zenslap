@@ -2,16 +2,19 @@ import { useCallback, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { createTagSchema } from '@/lib/validation'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import { CreateTagData } from '@/lib/types'
+import { Input, Button, Label } from '@/components/ui'
 import { cn } from '@/lib/utils'
+
+const createTagSchema = z.object({
+    name: z.string().min(1, 'Tag name is required').max(50, 'Tag name is too long'),
+    color: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Invalid color format')
+})
 
 type FormData = z.infer<typeof createTagSchema>
 
 interface TagFormProps {
-    onSubmit: (data: FormData) => Promise<void>
+    onSubmit: (data: CreateTagData) => Promise<void>
     isLoading?: boolean
     className?: string
 }
@@ -33,13 +36,20 @@ export function TagForm({ onSubmit, isLoading, className }: TagFormProps) {
     })
 
     const handleFormSubmit = useCallback(async (data: FormData) => {
+        if (isLoading) return
+
         try {
             await onSubmit(data)
             reset()
+            setColor('#000000')
         } catch (error) {
             // Error is handled by parent component
         }
-    }, [onSubmit, reset])
+    }, [onSubmit, reset, isLoading])
+
+    const handleColorChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        setColor(e.target.value)
+    }, [])
 
     return (
         <form 
@@ -54,6 +64,7 @@ export function TagForm({ onSubmit, isLoading, className }: TagFormProps) {
                     placeholder="Enter tag name"
                     aria-invalid={!!errors.name}
                     aria-errormessage={errors.name?.message}
+                    disabled={isLoading}
                 />
                 {errors.name && (
                     <p className="text-sm text-destructive">{errors.name.message}</p>
@@ -69,16 +80,18 @@ export function TagForm({ onSubmit, isLoading, className }: TagFormProps) {
                         {...register('color')}
                         className="w-12 h-12 p-1 cursor-pointer"
                         value={color}
-                        onChange={e => setColor(e.target.value)}
+                        onChange={handleColorChange}
                         aria-invalid={!!errors.color}
                         aria-errormessage={errors.color?.message}
+                        disabled={isLoading}
                     />
                     <Input
                         type="text"
                         value={color}
-                        onChange={e => setColor(e.target.value)}
+                        onChange={handleColorChange}
                         placeholder="#000000"
                         className="font-mono"
+                        disabled={isLoading}
                     />
                 </div>
                 {errors.color && (

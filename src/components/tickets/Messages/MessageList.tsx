@@ -1,9 +1,7 @@
 import { useCallback, useState } from 'react'
 import { TicketMessage } from '@/lib/types'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, Button, Textarea } from '@/components/ui'
 import { Pencil, Trash2, X, Check } from 'lucide-react'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 
@@ -42,11 +40,8 @@ function EditableMessage({
     const canModify = currentUserId === created_by
 
     const handleUpdate = useCallback(async () => {
-        if (!onUpdate || editedContent === content) {
-            setIsEditing(false)
-            return
-        }
-
+        if (!onUpdate || editedContent === content || isUpdating) return
+        
         try {
             await onUpdate(id, editedContent)
             setIsEditing(false)
@@ -54,7 +49,7 @@ function EditableMessage({
             // Error is handled by parent component
             setEditedContent(content)
         }
-    }, [id, content, editedContent, onUpdate])
+    }, [id, content, editedContent, onUpdate, isUpdating])
 
     const handleCancel = useCallback(() => {
         setIsEditing(false)
@@ -62,14 +57,14 @@ function EditableMessage({
     }, [content])
 
     const handleDelete = useCallback(async () => {
-        if (!onDelete) return
+        if (!onDelete || isDeleting) return
         await onDelete(id)
-    }, [id, onDelete])
+    }, [id, onDelete, isDeleting])
 
     return (
         <Card className={cn(
             'p-4',
-            type === 'agent' ? 'bg-primary/5' : 'bg-background'
+            type === 'agent' ? 'bg-primary/5 ml-8' : 'bg-background mr-8'
         )}>
             <div className="flex justify-between items-start gap-4">
                 <div className="flex-1">
@@ -77,8 +72,10 @@ function EditableMessage({
                         <Textarea
                             value={editedContent}
                             onChange={e => setEditedContent(e.target.value)}
-                            className="min-h-[100px]"
+                            className="min-h-[100px] resize-none"
+                            placeholder="Enter message content..."
                             disabled={isUpdating}
+                            aria-label="Edit message"
                         />
                     ) : (
                         <p className="whitespace-pre-wrap">{content}</p>
@@ -98,18 +95,23 @@ function EditableMessage({
                                     size="icon"
                                     onClick={handleUpdate}
                                     disabled={isUpdating || content === editedContent}
+                                    className={cn(
+                                        'hover:bg-primary/20',
+                                        isUpdating && 'opacity-50 cursor-not-allowed'
+                                    )}
                                 >
                                     <Check className="h-4 w-4" />
-                                    <span className="sr-only">Save</span>
+                                    <span className="sr-only">Save message</span>
                                 </Button>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleCancel}
                                     disabled={isUpdating}
+                                    className="hover:bg-destructive/20"
                                 >
                                     <X className="h-4 w-4" />
-                                    <span className="sr-only">Cancel</span>
+                                    <span className="sr-only">Cancel editing</span>
                                 </Button>
                             </>
                         ) : (
@@ -119,19 +121,23 @@ function EditableMessage({
                                     size="icon"
                                     onClick={() => setIsEditing(true)}
                                     disabled={isUpdating}
+                                    className="hover:bg-primary/20"
                                 >
                                     <Pencil className="h-4 w-4" />
-                                    <span className="sr-only">Edit</span>
+                                    <span className="sr-only">Edit message</span>
                                 </Button>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleDelete}
                                     disabled={isDeleting}
-                                    className="hover:bg-destructive/20"
+                                    className={cn(
+                                        'hover:bg-destructive/20',
+                                        isDeleting && 'opacity-50 cursor-not-allowed'
+                                    )}
                                 >
                                     <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Delete</span>
+                                    <span className="sr-only">Delete message</span>
                                 </Button>
                             </>
                         )}
