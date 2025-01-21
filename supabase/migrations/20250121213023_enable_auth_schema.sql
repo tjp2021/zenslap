@@ -1,6 +1,10 @@
 -- Drop the existing view if it exists
 drop view if exists public.users;
 
+-- Drop existing policies if they exist
+drop policy if exists "Users can view their own data" on auth.users;
+drop policy if exists "Admins can view all user data" on auth.users;
+
 -- Create or replace the public.users view
 create or replace view public.users as
 select 
