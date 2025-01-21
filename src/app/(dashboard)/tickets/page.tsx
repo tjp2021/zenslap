@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import TicketList from '@/components/tickets/TicketList'
 import TicketListSkeleton from '@/components/tickets/TicketListSkeleton'
+import { SignOutButton } from '@/components/auth/SignOutButton'
 
 export default function TicketsPage() {
   return (
@@ -33,6 +34,7 @@ export default function TicketsPage() {
             <Button variant="ghost" size="icon">
               <Bell className="h-4 w-4" />
             </Button>
+            <SignOutButton />
           </div>
         </div>
       </header>

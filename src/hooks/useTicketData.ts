@@ -42,9 +42,16 @@ const fetchTickets = async ({ page = 1, pageSize = PAGE_SIZE }) => {
 
 // Add user fetcher
 const fetchUsers = async () => {
+  const { data: session } = await supabase.auth.getSession()
+  
+  if (!session?.session?.user) {
+    throw new Error('Not authenticated')
+  }
+
   const { data, error } = await supabase
     .from('users')
-    .select('id, email')
+    .select('id, email, role, full_name, avatar_url')
+    .eq('id', session.session.user.id)
 
   if (error) throw error
   return data

@@ -17,6 +17,33 @@ begin
     end if;
 end $$;
 
+-- Create a view to expose auth.users in public schema
+create or replace view public.users as
+select 
+    id,
+    email,
+    role,
+    created_at,
+    updated_at,
+    last_sign_in_at
+from auth.users;
+
+-- Enable RLS on the users view to inherit policies from auth.users
+alter view public.users set (security_invoker = on);
+
+-- Create policies for auth.users
+drop policy if exists "Users can view their own data" on auth.users;
+create policy "Users can view their own data"
+    on auth.users for select
+    to authenticated
+    using (auth.uid() = id);
+
+drop policy if exists "Admins can view all user data" on auth.users;
+create policy "Admins can view all user data"
+    on auth.users for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
 -- Create tickets table
 create table if not exists tickets (
     id uuid default uuid_generate_v4() primary key,
