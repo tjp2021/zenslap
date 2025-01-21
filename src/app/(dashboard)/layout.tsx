@@ -1,6 +1,9 @@
+'use client'
+
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { TicketsProvider } from '@/lib/context/tickets'
 
 export default async function DashboardLayout({
   children,
@@ -16,8 +19,10 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex-1">{children}</div>
-    </div>
+    <TicketsProvider>
+      <div className="min-h-screen bg-background">
+        <div className="flex-1">{children}</div>
+      </div>
+    </TicketsProvider>
   )
 } 
