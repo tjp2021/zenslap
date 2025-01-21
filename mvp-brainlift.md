@@ -297,4 +297,74 @@ Debugging ticket creation failures in the Next.js/TypeScript CRM application wit
 - Resolved ticket creation issues
 - Improved error visibility
 - Better development process
-- More maintainable schema 
+- More maintainable schema
+
+# Authentication Implementation Debugging
+
+## Problem Context
+Debugging authentication flow issues in Next.js App Router with Supabase integration. The issue manifested as redirect loops and failed authentication state management despite successful login attempts.
+
+## Root Cause Analysis
+
+### Initial Symptoms
+1. **Auth Flow Issues**
+   ```typescript
+   // Custom client implementation
+   const supabase = createClient(...)
+   ```
+   - Successful sign-in events
+   - Failed redirects
+   - Session state inconsistencies
+
+2. **Attempted Solutions**
+   - Custom middleware implementation
+   - Manual redirect handling
+   - Client-side URL management
+   - Extensive logging additions
+
+### Investigation Path
+1. **Custom Implementation Issues**
+   - Manual auth state management
+   - Custom redirect logic
+   - Fighting framework patterns
+   - Security implications
+
+2. **Framework Analysis**
+   - Discovered built-in Next.js App Router + Supabase integration
+   - Official auth helpers available
+   - Built-in middleware support
+   - Proper session management
+
+## Key Learnings
+
+### Best Practices
+1. **Framework Integration**
+   - Use `createClientComponentClient()` for client components
+   - Use `createServerComponentClient()` for server components
+   - Use `createRouteHandlerClient()` for route handlers
+   - Follow official auth patterns
+
+2. **Development Approach**
+   - Check for official solutions first
+   - Read framework documentation before custom code
+   - Use battle-tested patterns for security features
+   - Question custom implementations of solved problems
+
+### Anti-Patterns
+1. **Implementation**
+   - Custom auth clients without justification
+   - Manual session management when built-in exists
+   - Fighting against framework patterns
+   - Reinventing security-critical features
+
+2. **Development Process**
+   - Starting with custom solutions before checking docs
+   - Debugging problems that are already solved
+   - Adding complexity to solved patterns
+   - Manual handling of security-critical flows
+
+## Impact
+- Simplified authentication code
+- More secure implementation
+- Better maintainability
+- Proper framework integration
