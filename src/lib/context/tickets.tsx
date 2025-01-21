@@ -218,7 +218,7 @@ export function TicketsProvider({
   async function loadUsers() {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('id, email')
         .order('email')
 
