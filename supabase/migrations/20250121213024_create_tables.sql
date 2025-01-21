@@ -1,179 +1,251 @@
--- Create users table
-CREATE TABLE IF NOT EXISTS public.users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Create AI configuration table
+create table if not exists ai_config (
+    id uuid default uuid_generate_v4() primary key,
+    provider text not null check (provider in ('openai', 'anthropic', 'cohere')),
+    model text not null,
+    api_key text not null,
+    options jsonb default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
--- Create tickets table
-CREATE TABLE IF NOT EXISTS public.tickets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  description TEXT,
-  status TEXT NOT NULL DEFAULT 'open',
-  priority TEXT NOT NULL DEFAULT 'medium',
-  created_by UUID REFERENCES public.users(id),
-  assigned_to UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create ticket_messages table
-CREATE TABLE IF NOT EXISTS public.ticket_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_id UUID REFERENCES public.tickets(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  created_by UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create internal_notes table
-CREATE TABLE IF NOT EXISTS public.internal_notes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_id UUID REFERENCES public.tickets(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  created_by UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create tags table
-CREATE TABLE IF NOT EXISTS public.tags (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  color TEXT NOT NULL DEFAULT '#000000',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create ticket_tags table
-CREATE TABLE IF NOT EXISTS public.ticket_tags (
-  ticket_id UUID REFERENCES public.tickets(id) ON DELETE CASCADE,
-  tag_id UUID REFERENCES public.tags(id) ON DELETE CASCADE,
-  PRIMARY KEY (ticket_id, tag_id)
-);
-
--- Create ai_config table
-CREATE TABLE IF NOT EXISTS public.ai_config (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  provider TEXT NOT NULL,
-  model TEXT NOT NULL,
-  api_key TEXT,
-  options JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Create ai_analyses table
-CREATE TABLE IF NOT EXISTS public.ai_analyses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_id UUID REFERENCES public.tickets(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,
-  result JSONB NOT NULL,
-  confidence FLOAT,
-  model_info JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+-- Create AI analyses table
+create table if not exists ai_analyses (
+    id uuid default uuid_generate_v4() primary key,
+    ticket_id uuid not null references tickets(id) on delete cascade,
+    type text not null check (type in ('sentiment', 'priority_suggestion', 'category_detection', 'response_suggestion', 'urgency_detection')),
+    result jsonb not null,
+    confidence float check (confidence >= 0 and confidence <= 1),
+    model_info jsonb not null,
+    created_at timestamptz not null default now()
 );
 
 -- Create webhooks table
-CREATE TABLE IF NOT EXISTS public.webhooks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  url TEXT NOT NULL,
-  events TEXT[] NOT NULL,
-  secret TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists webhooks (
+    id uuid default uuid_generate_v4() primary key,
+    url text not null,
+    events text[] not null,
+    secret text not null,
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
 -- Create workflows table
-CREATE TABLE IF NOT EXISTS public.workflows (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  trigger JSONB NOT NULL,
-  conditions JSONB[] NOT NULL DEFAULT '{}',
-  actions JSONB[] NOT NULL DEFAULT '{}',
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists workflows (
+    id uuid default uuid_generate_v4() primary key,
+    name text not null,
+    description text,
+    trigger jsonb not null,
+    conditions jsonb[] not null default '[]'::jsonb[],
+    actions jsonb[] not null default '[]'::jsonb[],
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
 -- Create analytics tables
-CREATE TABLE IF NOT EXISTS public.analytics_events (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type TEXT NOT NULL,
-  data JSONB NOT NULL,
-  user_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_events (
+    id uuid default uuid_generate_v4() primary key,
+    event_type text not null,
+    user_id uuid references auth.users(id),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.analytics_page_views (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  path TEXT NOT NULL,
-  user_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_page_views (
+    id uuid default uuid_generate_v4() primary key,
+    page text not null,
+    user_id uuid references auth.users(id),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.analytics_ticket_actions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_id UUID REFERENCES public.tickets(id),
-  action TEXT NOT NULL,
-  data JSONB,
-  user_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_ticket_actions (
+    id uuid default uuid_generate_v4() primary key,
+    ticket_id uuid references tickets(id) on delete cascade,
+    action text not null,
+    user_id uuid references auth.users(id),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.analytics_searches (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  query TEXT NOT NULL,
-  filters JSONB,
-  results_count INTEGER,
-  user_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_searches (
+    id uuid default uuid_generate_v4() primary key,
+    query text not null,
+    user_id uuid references auth.users(id),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.analytics_filters (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  filters JSONB NOT NULL,
-  user_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_filters (
+    id uuid default uuid_generate_v4() primary key,
+    filters jsonb not null,
+    user_id uuid references auth.users(id),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.analytics_bulk_actions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  action TEXT NOT NULL,
-  ticket_ids UUID[] NOT NULL,
-  data JSONB,
-  user_id UUID REFERENCES public.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_bulk_actions (
+    id uuid default uuid_generate_v4() primary key,
+    action text not null,
+    ticket_ids uuid[] not null,
+    user_id uuid references auth.users(id),
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
-CREATE TABLE IF NOT EXISTS public.analytics_workflow_triggers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  workflow_id UUID REFERENCES public.workflows(id),
-  trigger_data JSONB NOT NULL,
-  result JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+create table if not exists analytics_workflow_triggers (
+    id uuid default uuid_generate_v4() primary key,
+    workflow_id uuid references workflows(id) on delete cascade,
+    trigger_type text not null,
+    metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
 );
 
--- Create quick responses tables
-CREATE TABLE IF NOT EXISTS public.response_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- Add updated_at triggers
+create trigger update_ai_config_updated_at
+    before update on ai_config
+    for each row
+    execute function update_updated_at_column();
 
-CREATE TABLE IF NOT EXISTS public.quick_responses (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category_id UUID REFERENCES public.response_categories(id),
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  tags TEXT[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-); 
+create trigger update_webhooks_updated_at
+    before update on webhooks
+    for each row
+    execute function update_updated_at_column();
+
+create trigger update_workflows_updated_at
+    before update on workflows
+    for each row
+    execute function update_updated_at_column();
+
+-- Enable RLS on all tables
+alter table ai_config enable row level security;
+alter table ai_analyses enable row level security;
+alter table webhooks enable row level security;
+alter table workflows enable row level security;
+alter table analytics_events enable row level security;
+alter table analytics_page_views enable row level security;
+alter table analytics_ticket_actions enable row level security;
+alter table analytics_searches enable row level security;
+alter table analytics_filters enable row level security;
+alter table analytics_bulk_actions enable row level security;
+alter table analytics_workflow_triggers enable row level security;
+
+-- Set up RLS policies
+
+-- AI config policies
+create policy "AI config is viewable by agents and admins"
+    on ai_config for select
+    to authenticated
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
+
+create policy "AI config is manageable by admins"
+    on ai_config for all
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+-- AI analyses policies
+create policy "AI analyses are viewable by agents and admins"
+    on ai_analyses for select
+    to authenticated
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
+
+create policy "AI analyses are insertable by agents and admins"
+    on ai_analyses for insert
+    to authenticated
+    with check (auth.jwt() ->> 'role' in ('agent', 'admin'));
+
+-- Webhooks policies
+create policy "Webhooks are viewable by agents and admins"
+    on webhooks for select
+    to authenticated
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
+
+create policy "Webhooks are manageable by admins"
+    on webhooks for all
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+-- Workflows policies
+create policy "Workflows are viewable by agents and admins"
+    on workflows for select
+    to authenticated
+    using (auth.jwt() ->> 'role' in ('agent', 'admin'));
+
+create policy "Workflows are manageable by admins"
+    on workflows for all
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+-- Analytics policies
+create policy "Analytics are viewable by admins"
+    on analytics_events for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_events for insert
+    to authenticated
+    with check (true);
+
+-- Apply same policies to other analytics tables
+create policy "Analytics are viewable by admins"
+    on analytics_page_views for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_page_views for insert
+    to authenticated
+    with check (true);
+
+create policy "Analytics are viewable by admins"
+    on analytics_ticket_actions for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_ticket_actions for insert
+    to authenticated
+    with check (true);
+
+create policy "Analytics are viewable by admins"
+    on analytics_searches for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_searches for insert
+    to authenticated
+    with check (true);
+
+create policy "Analytics are viewable by admins"
+    on analytics_filters for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_filters for insert
+    to authenticated
+    with check (true);
+
+create policy "Analytics are viewable by admins"
+    on analytics_bulk_actions for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_bulk_actions for insert
+    to authenticated
+    with check (true);
+
+create policy "Analytics are viewable by admins"
+    on analytics_workflow_triggers for select
+    to authenticated
+    using (auth.jwt() ->> 'role' = 'admin');
+
+create policy "Analytics are insertable by authenticated users"
+    on analytics_workflow_triggers for insert
+    to authenticated
+    with check (true); 
