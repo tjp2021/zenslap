@@ -1,173 +1,192 @@
-import getSupabaseClient from '@/lib/supabase/client'
-import type { CreateTicketDTO, UpdateTicketDTO, TicketBase } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import getSupabaseClient from '@/lib/supabase/client'
 
-export const tickets = {
-	async getAll(client?: SupabaseClient) {
-		try {
-			const supabase = client || getSupabaseClient()
-			const { data, error } = await supabase
-				.from('tickets')
-				.select('*')
-				.order('created_at', { ascending: false })
+export interface CreateTicketDTO {
+	title: string
+	description: string
+	status: 'open' | 'closed'
+	priority: 'low' | 'medium' | 'high'
+	metadata: Record<string, any>
+	tags: string[]
+}
 
-			if (error) {
-				console.error('Supabase error:', error)
-				throw error
-			}
-			if (!data) {
-				console.error('No data returned from Supabase')
-				throw new Error('Failed to load tickets')
-			}
-			return { data, error: null }
-		} catch (err) {
-			console.error('Get tickets error:', err)
-			return { 
-				data: null, 
-				error: err instanceof Error ? err : new Error('Failed to load tickets') 
+export interface UpdateTicketDTO {
+	id: string
+	title?: string
+	description?: string
+	status?: 'open' | 'closed'
+	priority?: 'low' | 'medium' | 'high'
+	metadata?: Record<string, any>
+	tags?: string[]
+}
+
+export const getAll = async (supabase = getSupabaseClient()) => {
+	try {
+		const { data, error } = await supabase
+			.from('tickets')
+			.select()
+
+		if (error) {
+			console.error('Get tickets error:', error)
+			return {
+				data: null,
+				error
 			}
 		}
-	},
 
-	async getById(id: string, client?: SupabaseClient) {
-		try {
-			if (!id) {
-				throw new Error('Ticket ID is required')
-			}
-			if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
-				throw new Error('Invalid ticket ID format')
-			}
+		return {
+			data,
+			error: null
+		}
+	} catch (err) {
+		console.error('Get tickets error:', err)
+		return {
+			data: null,
+			error: err instanceof Error ? err : new Error('Failed to get tickets')
+		}
+	}
+}
 
-			const supabase = client || getSupabaseClient()
-			const { data, error } = await supabase
-				.from('tickets')
-				.select('*')
-				.eq('id', id)
-				.single()
-
-			if (error) {
-				console.error('Supabase error:', error)
-				throw error
-			}
-			if (!data) {
-				throw new Error('Ticket not found')
-			}
-			return { data, error: null }
-		} catch (err) {
-			console.error('Get ticket error:', err)
-			return { 
-				data: null, 
-				error: err instanceof Error ? err : new Error('Failed to get ticket') 
+export const getById = async (id: string, supabase = getSupabaseClient()) => {
+	try {
+		if (!id) {
+			return {
+				data: null,
+				error: new Error('Ticket ID is required')
 			}
 		}
-	},
 
-	async create(data: CreateTicketDTO, client?: SupabaseClient) {
-		try {
-			console.log('Creating ticket with data:', data)
+		const { data, error } = await supabase
+			.from('tickets')
+			.select()
+			.eq('id', id)
+			.single()
 
-			// Validate required fields
-			if (!data.title?.trim()) {
-				throw new Error('Title is required')
-			}
-			if (data.title.length > 255) {
-				throw new Error('Title must be at most 255 characters')
-			}
-			if (data.status && !['open', 'in_progress', 'closed'].includes(data.status)) {
-				throw new Error('Invalid status value')
-			}
-			if (data.priority && !['low', 'medium', 'high'].includes(data.priority)) {
-				throw new Error('Invalid priority value')
-			}
-
-			const supabase = client || getSupabaseClient()
-			const { data: result, error } = await supabase
-				.from('tickets')
-				.insert([{
-					...data,
-					status: data.status || 'open',
-					priority: data.priority || 'medium',
-					metadata: data.metadata || {}
-				}])
-
-			if (error) {
-				console.error('Supabase error:', error)
-				throw error
-			}
-			if (!result) {
-				console.error('No data returned from Supabase')
-				throw new Error('Failed to create ticket')
-			}
-			return { data: result, error: null }
-		} catch (err) {
-			console.error('Create ticket error:', err)
-			return { 
-				data: null, 
-				error: err instanceof Error ? err : new Error('Failed to create ticket') 
+		if (error) {
+			console.error('Get ticket error:', error)
+			return {
+				data: null,
+				error
 			}
 		}
-	},
 
-	async update(id: string, data: UpdateTicketDTO, client?: SupabaseClient) {
-		try {
-			if (!id) {
-				throw new Error('Ticket ID is required')
-			}
-			if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
-				throw new Error('Invalid uuid')
-			}
+		return {
+			data,
+			error: null
+		}
+	} catch (err) {
+		console.error('Get ticket error:', err)
+		return {
+			data: null,
+			error: err instanceof Error ? err : new Error('Failed to get ticket')
+		}
+	}
+}
 
-			const supabase = client || getSupabaseClient()
-			const { data: result, error } = await supabase
-				.from('tickets')
-				.update(data)
-				.eq('id', id)
-				.select()
-				.single()
-
-			if (error) {
-				console.error('Supabase error:', error)
-				throw error
-			}
-			if (!result) {
-				throw new Error('Ticket not found')
-			}
-			return { data: result, error: null }
-		} catch (err) {
-			console.error('Update ticket error:', err)
-			return { 
-				data: null, 
-				error: err instanceof Error ? err : new Error('Failed to update ticket') 
+export const create = async (data: CreateTicketDTO, supabase = getSupabaseClient()) => {
+	try {
+		if (!data.title) {
+			return {
+				data: null,
+				error: new Error('Title is required')
 			}
 		}
-	},
 
-	async delete(id: string, client?: SupabaseClient) {
-		try {
-			if (!id) {
-				throw new Error('Ticket ID is required')
-			}
-			if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
-				throw new Error('Invalid uuid')
-			}
+		const { data: result, error } = await supabase
+			.from('tickets')
+			.insert(data)
+			.select()
+			.single()
 
-			const supabase = client || getSupabaseClient()
-			const { error } = await supabase
-				.from('tickets')
-				.delete()
-				.eq('id', id)
+		if (error) {
+			console.error('Create ticket error:', error)
+			return {
+				data: null,
+				error
+			}
+		}
 
-			if (error) {
-				console.error('Supabase error:', error)
-				throw error
+		return {
+			data: result,
+			error: null
+		}
+	} catch (err) {
+		console.error('Create ticket error:', err)
+		return {
+			data: null,
+			error: err instanceof Error ? err : new Error('Failed to create ticket')
+		}
+	}
+}
+
+export const update = async (id: string, data: UpdateTicketDTO, supabase = getSupabaseClient()) => {
+	try {
+		if (!id) {
+			return {
+				data: null,
+				error: new Error('Ticket ID is required')
 			}
-			return { data: { success: true }, error: null }
-		} catch (err) {
-			console.error('Delete ticket error:', err)
-			return { 
-				data: null, 
-				error: err instanceof Error ? err : new Error('Failed to delete ticket') 
+		}
+
+		const { data: result, error } = await supabase
+			.from('tickets')
+			.update(data)
+			.eq('id', id)
+			.select()
+			.single()
+
+		if (error) {
+			console.error('Update ticket error:', error)
+			return {
+				data: null,
+				error
 			}
+		}
+
+		return {
+			data: result,
+			error: null
+		}
+	} catch (err) {
+		console.error('Update ticket error:', err)
+		return {
+			data: null,
+			error: err instanceof Error ? err : new Error('Failed to update ticket')
+		}
+	}
+}
+
+export const deleteTicket = async (id: string, supabase = getSupabaseClient()) => {
+	try {
+		if (!id) {
+			return {
+				data: null,
+				error: new Error('Ticket ID is required')
+			}
+		}
+
+		const { error } = await supabase
+			.from('tickets')
+			.delete()
+			.eq('id', id)
+
+		if (error) {
+			console.error('Delete ticket error:', error)
+			return {
+				data: null,
+				error
+			}
+		}
+
+		return {
+			data: { success: true },
+			error: null
+		}
+	} catch (err) {
+		console.error('Delete ticket error:', err)
+		return {
+			data: null,
+			error: err instanceof Error ? err : new Error('Failed to delete ticket')
 		}
 	}
 }

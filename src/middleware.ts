@@ -1,13 +1,45 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+// List of public routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/auth/callback',
+  '/auth/signup',
+  '/auth/login',
+  '/'
+]
+
 export async function middleware(req: NextRequest) {
   console.log('🛡️ [Middleware] Executing for path:', req.nextUrl.pathname, 'at:', new Date().toISOString())
-  const res = NextResponse.next()
+  let response = NextResponse.next()
   
   console.log('🛡️ [Middleware] Creating Supabase client')
-  const supabase = createMiddlewareClient({ req, res })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: CookieOptions) {
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+        },
+      },
+    }
+  )
 
   console.log('🛡️ [Middleware] Getting session')
   const {
@@ -22,9 +54,9 @@ export async function middleware(req: NextRequest) {
   })
 
   // Skip auth check for public routes
-  if (req.nextUrl.pathname === '/auth/callback' || req.nextUrl.pathname === '/') {
+  if (PUBLIC_ROUTES.includes(req.nextUrl.pathname)) {
     console.log('🛡️ [Middleware] Allowing public route to proceed:', req.nextUrl.pathname)
-    return res
+    return response
   }
 
   // If user is not signed in and trying to access protected routes,
@@ -47,7 +79,7 @@ export async function middleware(req: NextRequest) {
   }
 
   console.log('🛡️ [Middleware] Proceeding with request for path:', req.nextUrl.pathname)
-  return res
+  return response
 }
 
 export const config = {

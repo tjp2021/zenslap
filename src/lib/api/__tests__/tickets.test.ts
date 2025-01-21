@@ -1,102 +1,116 @@
 import { createMockSupabaseClient } from '@/lib/context/__tests__/test-utils'
-import { tickets } from '../routes/tickets'
+import { create, getAll, getById, update, deleteTicket } from '../routes/tickets'
 import { mockTicket } from '../../test-utils'
+import { SupabaseClient } from '@supabase/supabase-js'
+import type { CreateTicketDTO, UpdateTicketDTO } from '../routes/tickets'
 
 const VALID_UUID = '123e4567-e89b-12d3-a456-426614174000'
 
+const mockCreateTicket: CreateTicketDTO = {
+	title: 'Test Ticket',
+	description: 'Test Description',
+	status: 'open' as const,
+	priority: 'medium' as const,
+	metadata: {},
+	tags: []
+}
+
+const mockUpdateTicket: UpdateTicketDTO = {
+	id: VALID_UUID,
+	title: 'Updated Title',
+	status: 'closed' as const
+}
+
+const mockSupabase = createMockSupabaseClient()
+
 describe('Ticket Service', () => {
-	let mockSupabase: any
-
-	beforeEach(() => {
-		mockSupabase = createMockSupabaseClient({
-			select: { data: null, error: null },
-			insert: { data: null, error: null },
-			update: { data: null, error: null },
-			delete: { data: null, error: null }
-		})
-	})
-
 	describe('create', () => {
 		it('should create a ticket successfully', async () => {
-			mockSupabase.mockMethods.insert.mockResolvedValueOnce({
-				data: { ...mockTicket, id: VALID_UUID },
-				error: null
+			const result = await create(mockCreateTicket, mockSupabase as any as SupabaseClient)
+			expect(result.data).toEqual({
+				...mockTicket,
+				id: VALID_UUID,
+				created_at: expect.any(String),
+				updated_at: expect.any(String)
 			})
-
-			const result = await tickets.create({
-				title: 'Test Ticket',
-				description: 'Test Description',
-				status: 'open',
-				priority: 'medium',
-				metadata: {}
-			}, mockSupabase)
-
-			expect(result.data).toEqual({ ...mockTicket, id: VALID_UUID })
 			expect(result.error).toBeNull()
 		})
 
 		it('should handle database errors', async () => {
-			mockSupabase.mockMethods.insert.mockRejectedValueOnce(new Error('Database error'))
-
-			const result = await tickets.create({
+			const result = await create({
 				title: 'Test Ticket',
 				description: 'Test Description',
-				status: 'open',
-				priority: 'medium',
-				metadata: {}
-			}, mockSupabase)
+				status: 'open' as const,
+				priority: 'high' as const,
+				metadata: {},
+				tags: []
+			}, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Database error'))
+			expect(result.error).toEqual({
+				message: 'Database error',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 
 		it('should handle empty title', async () => {
-			const result = await tickets.create({
+			const result = await create({
 				title: '',
 				description: 'Test Description',
-				status: 'open',
-				priority: 'medium',
-				metadata: {}
-			}, mockSupabase)
+				status: 'open' as const,
+				priority: 'medium' as const,
+				metadata: {},
+				tags: []
+			}, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Title is required'))
+			expect(result.error).toEqual({
+				message: 'Title is required',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle very long title', async () => {
-			const result = await tickets.create({
+			const result = await create({
 				title: 'a'.repeat(256),
 				description: 'Test Description',
-				status: 'open',
-				priority: 'medium',
-				metadata: {}
-			}, mockSupabase)
+				status: 'open' as const,
+				priority: 'medium' as const,
+				metadata: {},
+				tags: []
+			}, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
 			expect(result.error).toEqual(new Error('Title must be at most 255 characters'))
 		})
 
 		it('should handle invalid status', async () => {
-			const result = await tickets.create({
+			const result = await create({
 				title: 'Test Ticket',
 				description: 'Test Description',
-				status: 'invalid_status',
-				priority: 'medium',
-				metadata: {}
-			} as any, mockSupabase)
+				status: 'invalid_status' as const,
+				priority: 'medium' as const,
+				metadata: {},
+				tags: []
+			} as any, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
 			expect(result.error).toEqual(new Error('Invalid status value'))
 		})
 
 		it('should handle invalid priority', async () => {
-			const result = await tickets.create({
+			const result = await create({
 				title: 'Test Ticket',
 				description: 'Test Description',
-				status: 'open',
-				priority: 'invalid_priority',
-				metadata: {}
-			} as any, mockSupabase)
+				status: 'open' as const,
+				priority: 'invalid_priority' as const,
+				metadata: {},
+				tags: []
+			} as any, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
 			expect(result.error).toEqual(new Error('Invalid priority value'))
@@ -105,163 +119,179 @@ describe('Ticket Service', () => {
 
 	describe('getAll', () => {
 		it('should get all tickets successfully', async () => {
-			mockSupabase.mockMethods.select.mockResolvedValueOnce({
-				data: [mockTicket],
-				error: null
-			})
-
-			const result = await tickets.getAll(mockSupabase)
+			const result = await getAll(mockSupabase as any as SupabaseClient)
 			expect(result.data).toEqual([mockTicket])
 			expect(result.error).toBeNull()
 		})
 
 		it('should handle database errors', async () => {
-			mockSupabase.mockMethods.select.mockRejectedValueOnce(new Error('Database error'))
+			const result = await getAll(mockSupabase as any as SupabaseClient)
 
-			const result = await tickets.getAll(mockSupabase)
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Database error'))
+			expect(result.error).toEqual({
+				message: 'Database error',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 	})
 
 	describe('getById', () => {
 		it('should get a ticket by id successfully', async () => {
-			mockSupabase.mockMethods.select.mockResolvedValueOnce({
-				data: { ...mockTicket, id: VALID_UUID },
-				error: null
-			})
-
-			const result = await tickets.getById(VALID_UUID, mockSupabase)
+			const result = await getById(VALID_UUID, mockSupabase as any as SupabaseClient)
 			expect(result.data).toEqual({ ...mockTicket, id: VALID_UUID })
 			expect(result.error).toBeNull()
 		})
 
-		it('should handle empty id', async () => {
-			const result = await tickets.getById('', mockSupabase)
+		it('should handle missing id', async () => {
+			const result = await getById('', mockSupabase as any as SupabaseClient)
+
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Ticket ID is required'))
+			expect(result.error).toEqual({
+				message: 'Ticket ID is required',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle invalid id format', async () => {
-			const result = await tickets.getById('invalid-id', mockSupabase)
+			const result = await getById('invalid-id', mockSupabase as any as SupabaseClient)
+
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Invalid ticket ID format'))
+			expect(result.error).toEqual({
+				message: 'Invalid ticket ID format',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle non-existent ticket', async () => {
-			mockSupabase.mockMethods.select.mockResolvedValueOnce({
-				data: null,
-				error: null
-			})
+			const result = await getById(VALID_UUID, mockSupabase as any as SupabaseClient)
 
-			const result = await tickets.getById(VALID_UUID, mockSupabase)
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Ticket not found'))
+			expect(result.error).toEqual({
+				message: 'Ticket not found',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 
 		it('should handle database errors', async () => {
-			mockSupabase.mockMethods.select.mockRejectedValueOnce(new Error('Database error'))
+			const result = await getById(VALID_UUID, mockSupabase as any as SupabaseClient)
 
-			const result = await tickets.getById(VALID_UUID, mockSupabase)
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Database error'))
+			expect(result.error).toEqual({
+				message: 'Database error',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 	})
 
 	describe('update', () => {
 		it('should update a ticket successfully', async () => {
-			mockSupabase.mockMethods.update.mockResolvedValueOnce({
-				data: { ...mockTicket, id: VALID_UUID },
-				error: null
+			const result = await update(VALID_UUID, mockUpdateTicket, mockSupabase as any as SupabaseClient)
+			expect(result.data).toEqual({
+				...mockTicket
 			})
-
-			const result = await tickets.update(VALID_UUID, {
-				id: VALID_UUID,
-				title: 'Updated Title'
-			}, mockSupabase)
-
-			expect(result.data).toEqual({ ...mockTicket, id: VALID_UUID })
 			expect(result.error).toBeNull()
 		})
 
-		it('should handle empty id', async () => {
-			const result = await tickets.update('', {
-				id: '',
-				title: 'Updated Title'
-			}, mockSupabase)
+		it('should handle missing id', async () => {
+			const result = await update('', mockUpdateTicket, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Ticket ID is required'))
+			expect(result.error).toEqual({
+				message: 'Ticket ID is required',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle invalid id format', async () => {
-			const result = await tickets.update('invalid-id', {
-				id: 'invalid-id',
-				title: 'Updated Title'
-			}, mockSupabase)
+			const result = await update('invalid-id', mockUpdateTicket, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Invalid uuid'))
+			expect(result.error).toEqual({
+				message: 'Invalid uuid',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle non-existent ticket', async () => {
-			mockSupabase.mockMethods.update.mockResolvedValueOnce({
-				data: null,
-				error: null
-			})
-
-			const result = await tickets.update(VALID_UUID, {
-				id: VALID_UUID,
-				title: 'Updated Title'
-			}, mockSupabase)
+			const result = await update(VALID_UUID, mockUpdateTicket, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Ticket not found'))
+			expect(result.error).toEqual({
+				message: 'Ticket not found',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 
 		it('should handle database errors', async () => {
-			mockSupabase.mockMethods.update.mockRejectedValueOnce(new Error('Database error'))
-
-			const result = await tickets.update(VALID_UUID, {
-				id: VALID_UUID,
-				title: 'Updated Title'
-			}, mockSupabase)
+			const result = await update(VALID_UUID, mockUpdateTicket, mockSupabase as any as SupabaseClient)
 
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Database error'))
+			expect(result.error).toEqual({
+				message: 'Database error',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 	})
 
 	describe('delete', () => {
 		it('should delete a ticket successfully', async () => {
-			mockSupabase.mockMethods.delete.mockResolvedValueOnce({
-				data: null,
-				error: null
-			})
-
-			const result = await tickets.delete(VALID_UUID, mockSupabase)
+			const result = await deleteTicket(VALID_UUID, mockSupabase as any as SupabaseClient)
 			expect(result.data).toEqual({ success: true })
 			expect(result.error).toBeNull()
 		})
 
-		it('should handle empty id', async () => {
-			const result = await tickets.delete('', mockSupabase)
+		it('should handle missing id', async () => {
+			const result = await deleteTicket('', mockSupabase as any as SupabaseClient)
+
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Ticket ID is required'))
+			expect(result.error).toEqual({
+				message: 'Ticket ID is required',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle invalid id format', async () => {
-			const result = await tickets.delete('invalid-id', mockSupabase)
+			const result = await deleteTicket('invalid-id', mockSupabase as any as SupabaseClient)
+
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Invalid uuid'))
+			expect(result.error).toEqual({
+				message: 'Invalid uuid',
+				details: '',
+				hint: '',
+				code: 'VALIDATION_ERROR'
+			})
 		})
 
 		it('should handle database errors', async () => {
-			mockSupabase.mockMethods.delete.mockRejectedValueOnce(new Error('Database error'))
+			const result = await deleteTicket(VALID_UUID, mockSupabase as any as SupabaseClient)
 
-			const result = await tickets.delete(VALID_UUID, mockSupabase)
 			expect(result.data).toBeNull()
-			expect(result.error).toEqual(new Error('Database error'))
+			expect(result.error).toEqual({
+				message: 'Database error',
+				details: '',
+				hint: '',
+				code: 'PGRST116'
+			})
 		})
 	})
 }) 
