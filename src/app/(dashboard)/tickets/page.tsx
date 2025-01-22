@@ -11,6 +11,7 @@ import { OpenTicketsCounter } from '@/components/tickets/OpenTicketsCounter'
 import { TicketStatistics } from '@/components/tickets/TicketStatistics'
 import { TicketUpdates } from '@/components/tickets/TicketUpdates'
 import { useRouter } from 'next/navigation'
+import { AgentAndAbove } from '@/components/auth/PermissionGate'
 
 export default function TicketsPage() {
   const router = useRouter()
@@ -20,9 +21,11 @@ export default function TicketsPage() {
       {/* Header */}
       <header className="border-b bg-white">
         <div className="flex h-16 items-center px-4 gap-4">
-          <Button variant="outline" size="icon" className="shrink-0">
-            <Plus className="h-4 w-4" />
-          </Button>
+          <AgentAndAbove>
+            <Button variant="outline" size="icon" className="shrink-0">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </AgentAndAbove>
           <div className="flex-1">
             <nav className="flex items-center space-x-4">
               <a href="#" className="text-sm text-muted-foreground">
@@ -51,13 +54,15 @@ export default function TicketsPage() {
           <h2 className="text-lg font-semibold mb-4">Updates to your tickets</h2>
           <TicketUpdates />
           <div className="mt-auto">
-            <Button 
-              className="w-full flex items-center gap-2 bg-[#4a9d76] hover:bg-[#2d6847]"
-              onClick={() => router.push('/tickets/new')}
-            >
-              <Plus className="h-4 w-4" />
-              Create a Ticket
-            </Button>
+            <AgentAndAbove>
+              <Button 
+                className="w-full flex items-center gap-2 bg-[#4a9d76] hover:bg-[#2d6847]"
+                onClick={() => router.push('/tickets/new')}
+              >
+                <Plus className="h-4 w-4" />
+                Create a Ticket
+              </Button>
+            </AgentAndAbove>
           </div>
         </aside>
 
@@ -66,7 +71,9 @@ export default function TicketsPage() {
           {/* Statistics */}
           <div className="grid gap-6 md:grid-cols-2 mb-6">
             <OpenTicketsCounter />
-            <TicketStatistics />
+            <AgentAndAbove>
+              <TicketStatistics />
+            </AgentAndAbove>
           </div>
 
           <Suspense fallback={<TicketListSkeleton />}>

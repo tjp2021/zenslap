@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useTickets } from '@/lib/context/tickets'
 import { Input } from "@/components/ui/input"
-import { TICKET_STATUSES, TICKET_PRIORITIES } from '@/lib/types'
+import { TICKET_STATUSES, TICKET_PRIORITIES, type User } from '@/lib/types'
 import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus, AlertCircle } from "lucide-react"
 import { useState, useMemo, useCallback } from "react"
 import {
@@ -28,6 +28,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import { AgentAndAbove } from '@/components/auth/PermissionGate'
+import { can, TicketActions } from '@/lib/permissions'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { TicketActions as NewTicketActions } from './TicketActions'
+import { useRouter } from 'next/navigation'
 
 interface SortableColumnProps {
   field: 'created_at' | 'updated_at' | 'priority' | 'status' | 'title'
@@ -79,6 +84,7 @@ function SortableColumn({ field, children, className, onClick }: SortableColumnP
 }
 
 export default function TicketList() {
+  const { user } = useAuth() as { user: User | null }
   const [currentPage, setCurrentPage] = useState(1)
   const { 
     tickets,
@@ -91,16 +97,17 @@ export default function TicketList() {
   } = useTickets()
   const { users } = useUsers()
   const { 
-    bulkUpdateTickets, 
-    assignTickets,
-    isBulkUpdating,
-    isAssigning,
-    bulkError,
-    assignError
+    bulkUpdateTickets,
+    updateTicket,
   } = useTicketMutations()
   const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set())
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+  const [isAssigning, setIsAssigning] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+  const [assignError, setAssignError] = useState<string | null>(null)
+  const router = useRouter()
 
-  const pageSize = 20 // Match the previous PAGE_SIZE
+  const pageSize = 20
   const totalCount = tickets.length
   const totalPages = Math.ceil(totalCount / pageSize)
 
@@ -138,19 +145,50 @@ export default function TicketList() {
 
   // Bulk update handler
   const handleBulkStatusUpdate = useCallback(async (newStatus: typeof TICKET_STATUSES[number]) => {
-    const result = await bulkUpdateTickets(Array.from(selectedTickets), { status: newStatus })
-    if (!result.error) {
+    setIsBulkUpdating(true)
+    setBulkError(null)
+    try {
+      await bulkUpdateTickets(Array.from(selectedTickets), { status: newStatus })
       setSelectedTickets(new Set())
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : 'Failed to update tickets')
+    } finally {
+      setIsBulkUpdating(false)
     }
   }, [bulkUpdateTickets, selectedTickets])
 
   // Assign handler
-  const handleAssign = useCallback(async (assignee: string | null) => {
-    const result = await assignTickets(Array.from(selectedTickets), assignee)
-    if (!result.error) {
+  const handleAssign = useCallback(async (assigneeId: string | null) => {
+    setIsAssigning(true)
+    setAssignError(null)
+    try {
+      const updates = await Promise.all(
+        Array.from(selectedTickets).map(id => 
+          updateTicket(id, { assignee: assigneeId })
+        )
+      )
       setSelectedTickets(new Set())
+    } catch (error) {
+      setAssignError(error instanceof Error ? error.message : 'Failed to assign tickets')
+    } finally {
+      setIsAssigning(false)
     }
-  }, [assignTickets, selectedTickets])
+  }, [updateTicket, selectedTickets])
+
+  // Check if user can perform bulk actions
+  const canBulkUpdate = useCallback((tickets: string[]) => {
+    return tickets.every(id => {
+      const ticket = currentTickets.find(t => t.id === id)
+      return ticket && can(TicketActions.EDIT_STATUS, user, ticket)
+    })
+  }, [currentTickets, user])
+
+  const canAssign = useCallback((tickets: string[]) => {
+    return tickets.every(id => {
+      const ticket = currentTickets.find(t => t.id === id)
+      return ticket && can(TicketActions.EDIT_ASSIGNEE, user, ticket)
+    })
+  }, [currentTickets, user])
 
   if (loading) {
     return <div>Loading tickets...</div>
@@ -161,50 +199,56 @@ export default function TicketList() {
       <CardContent className="p-6">
         {/* Bulk Actions */}
         {selectedTickets.size > 0 && (
-          <div className="mb-4 p-4 border rounded-lg bg-muted/50">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {selectedTickets.size} selected
-              </span>
-              <div className="flex items-center gap-2">
-                {TICKET_STATUSES.map(status => (
-                  <Button
-                    key={status}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleBulkStatusUpdate(status)}
-                    disabled={isBulkUpdating}
-                  >
-                    {isBulkUpdating ? 'Updating...' : `Set ${status}`}
-                  </Button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-2 border-l pl-4">
-                <Select
-                  onValueChange={(value) => handleAssign(value === 'unassign' ? null : value)}
-                  disabled={isAssigning}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <div className="flex items-center gap-2">
-                      <UserPlus className="h-4 w-4" />
-                      <SelectValue placeholder={isAssigning ? "Assigning..." : "Assign to..."} />
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map(user => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.email}
-                      </SelectItem>
+          <AgentAndAbove>
+            <div className="mb-4 p-4 border rounded-lg bg-muted/50">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  {selectedTickets.size} selected
+                </span>
+                {canBulkUpdate(Array.from(selectedTickets)) && (
+                  <div className="flex items-center gap-2">
+                    {TICKET_STATUSES.map(status => (
+                      <Button
+                        key={status}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleBulkStatusUpdate(status)}
+                        disabled={isBulkUpdating}
+                      >
+                        {isBulkUpdating ? 'Updating...' : `Set ${status}`}
+                      </Button>
                     ))}
-                    <SelectItem value="unassign" className="border-t mt-2">
-                      Unassign
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
+
+                {canAssign(Array.from(selectedTickets)) && (
+                  <div className="flex items-center gap-2 border-l pl-4">
+                    <Select
+                      onValueChange={handleAssign}
+                      disabled={isAssigning}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <div className="flex items-center gap-2">
+                          <UserPlus className="h-4 w-4" />
+                          <SelectValue placeholder={isAssigning ? "Assigning..." : "Assign to..."} />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users.map((user: User) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.email}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="unassign" className="border-t mt-2">
+                          Unassign
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          </AgentAndAbove>
         )}
 
         {/* Error Messages */}
@@ -270,14 +314,16 @@ export default function TicketList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">
-                <input 
-                  type="checkbox" 
-                  className="rounded border-gray-300"
-                  checked={selectedTickets.size === currentTickets.length}
-                  onChange={handleSelectAll}
-                />
-              </TableHead>
+              <AgentAndAbove>
+                <TableHead className="w-12">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-gray-300"
+                    checked={selectedTickets.size === currentTickets.length}
+                    onChange={handleSelectAll}
+                  />
+                </TableHead>
+              </AgentAndAbove>
               <SortableColumn field="title" onClick={(direction) => setSort('title', direction)}>Title</SortableColumn>
               <SortableColumn field="status" onClick={(direction) => setSort('status', direction)}>Status</SortableColumn>
               <SortableColumn field="priority" onClick={(direction) => setSort('priority', direction)}>Priority</SortableColumn>
@@ -290,14 +336,16 @@ export default function TicketList() {
           <TableBody>
             {currentTickets.map((ticket) => (
               <TableRow key={ticket.id}>
-                <TableCell>
-                  <input 
-                    type="checkbox" 
-                    className="rounded border-gray-300"
-                    checked={selectedTickets.has(ticket.id)}
-                    onChange={() => handleSelectTicket(ticket.id)}
-                  />
-                </TableCell>
+                <AgentAndAbove>
+                  <TableCell>
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300"
+                      checked={selectedTickets.has(ticket.id)}
+                      onChange={() => handleSelectTicket(ticket.id)}
+                    />
+                  </TableCell>
+                </AgentAndAbove>
                 <TableCell>{ticket.title}</TableCell>
                 <TableCell>
                   <Badge
@@ -328,7 +376,24 @@ export default function TicketList() {
                 <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
                 <TableCell>{new Date(ticket.updated_at).toLocaleString()}</TableCell>
                 <TableCell>
-                  {/* ... existing actions ... */}
+                  <NewTicketActions
+                    ticket={ticket}
+                    onEdit={() => router.push(`/tickets/${ticket.id}`)}
+                    onDelete={async () => {
+                      try {
+                        await updateTicket(ticket.id, { status: 'closed' })
+                      } catch (error) {
+                        console.error('Failed to close ticket:', error)
+                      }
+                    }}
+                    onAssign={async (userId) => {
+                      try {
+                        await updateTicket(ticket.id, { assignee: userId })
+                      } catch (error) {
+                        console.error('Failed to assign ticket:', error)
+                      }
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             ))}
