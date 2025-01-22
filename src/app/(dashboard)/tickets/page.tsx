@@ -9,6 +9,7 @@ import TicketListSkeleton from '@/components/tickets/TicketListSkeleton'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { OpenTicketsCounter } from '@/components/tickets/OpenTicketsCounter'
 import { TicketStatistics } from '@/components/tickets/TicketStatistics'
+import { TicketUpdates } from '@/components/tickets/TicketUpdates'
 
 export default function TicketsPage() {
   return (
@@ -45,16 +46,7 @@ export default function TicketsPage() {
         {/* Sidebar */}
         <aside className="w-80 border-r bg-white p-4 min-h-[calc(100vh-4rem)]">
           <h2 className="text-lg font-semibold mb-4">Updates to your tickets</h2>
-          <div className="space-y-4">
-            {updates.map((update, i) => (
-              <div key={i} className="p-3 border rounded-lg">
-                <p className="text-sm">
-                  <span className="font-medium">Zendesk</span> {update.action} {update.ticket}
-                </p>
-                <p className="text-xs text-muted-foreground">less than a minute ago</p>
-              </div>
-            ))}
-          </div>
+          <TicketUpdates />
         </aside>
 
         {/* Main Content */}
@@ -72,19 +64,4 @@ export default function TicketsPage() {
       </div>
     </div>
   )
-}
-
-const updates = [
-  {
-    action: "assigned you",
-    ticket: '"SAMPLE TICKET: Do I put it together?"',
-  },
-  {
-    action: "increased the priority on",
-    ticket: '"SAMPLE TICKET: Do I put it together?"',
-  },
-  {
-    action: "assigned you",
-    ticket: '"SAMPLE TICKET: Shipping cost"',
-  },
-] 
+} 

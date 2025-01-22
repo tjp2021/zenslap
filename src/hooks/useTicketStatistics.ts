@@ -8,7 +8,7 @@ export function useTicketStatistics() {
   const { data, error, isLoading, mutate } = useSWR(
     CACHE_KEY,
     async () => {
-      const { data, error } = await ticketService.getWeeklyStatistics()
+      const { data, error } = await ticketService.getStatistics()
       if (error) throw error
       return data
     },

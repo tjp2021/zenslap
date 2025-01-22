@@ -66,7 +66,7 @@ const fetchUsers = async () => {
     // Get all users from secure table
     const { data: users, error: usersError } = await supabase
       .from('users_secure')
-      .select('id, email, role, display_name, created_at')
+      .select('id, email, role, created_at')
       .order('email')
 
     if (usersError) {
@@ -84,8 +84,8 @@ const fetchUsers = async () => {
     
     return users?.map(user => ({
       ...user,
-      // Provide fallback display name if not set
-      display_name: user.display_name || user.email.split('@')[0]
+      // Use email prefix as display name
+      display_name: user.email.split('@')[0]
     })) || []
   } catch (err) {
     console.error('Fetch users error:', err)
