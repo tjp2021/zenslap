@@ -4,6 +4,8 @@ import type { Database } from '@/types/supabase'
 
 // For use in API routes only
 export async function createServerClient() {
-  const cookieStore = cookies()
-  return createRouteHandlerClient<Database>({ cookies: () => cookieStore })
+  const cookieStore = await cookies()
+  return createRouteHandlerClient<Database>({ 
+    cookies: async () => cookieStore 
+  })
 } 

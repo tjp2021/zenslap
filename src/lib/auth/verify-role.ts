@@ -3,7 +3,10 @@ import { cookies } from 'next/headers'
 import { UserRole } from '../types'
 
 export async function verifyUserRole(userId: string): Promise<UserRole> {
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = await cookies()
+  const supabase = createRouteHandlerClient({ 
+    cookies: async () => cookieStore 
+  })
   
   // Get role from users_secure table (server-side only)
   const { data: userData, error } = await supabase

@@ -126,3 +126,48 @@ export interface Message {
 	created_at: string
 	metadata?: Record<string, unknown>
 }
+
+export interface Comment {
+	id: string
+	ticket_id: string
+	content: string
+	created_at: string
+	created_by: string
+	updated_at: string | null
+	is_internal: boolean
+}
+
+export interface CommentCreate {
+	ticket_id: string
+	content: string
+	is_internal: boolean
+}
+
+export type ActivityType = 'comment' | 'status_change' | 'field_change' | 'assignment'
+
+export interface TicketActivity {
+	id: string
+	ticket_id: string
+	actor_id: string
+	activity_type: ActivityType
+	content: {
+		message?: string
+		is_internal?: boolean
+		old_value?: string
+		new_value?: string
+		field_name?: string
+	}
+	created_at: string
+}
+
+export interface CreateActivityDTO {
+	ticket_id: string
+	activity_type: ActivityType
+	content: {
+		message?: string
+		is_internal?: boolean
+		old_value?: string
+		new_value?: string
+		field_name?: string
+	}
+}

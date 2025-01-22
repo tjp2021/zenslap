@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useTickets } from '@/lib/context/tickets'
 import { Input } from "@/components/ui/input"
-import { TICKET_STATUSES, TICKET_PRIORITIES, type User } from '@/lib/types'
+import { TICKET_STATUSES, TICKET_PRIORITIES, type User, type Ticket } from '@/lib/types'
 import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus, AlertCircle } from "lucide-react"
 import { useState, useMemo, useCallback } from "react"
 import {
@@ -84,6 +84,7 @@ function SortableColumn({ field, children, className, onClick }: SortableColumnP
 }
 
 export default function TicketList() {
+  const router = useRouter()
   const { user } = useAuth() as { user: User | null }
   const [currentPage, setCurrentPage] = useState(1)
   const { 
@@ -105,7 +106,6 @@ export default function TicketList() {
   const [isAssigning, setIsAssigning] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
   const [assignError, setAssignError] = useState<string | null>(null)
-  const router = useRouter()
 
   const pageSize = 20
   const totalCount = tickets.length
@@ -189,6 +189,26 @@ export default function TicketList() {
       return ticket && can(TicketActions.EDIT_ASSIGNEE, user, ticket)
     })
   }, [currentTickets, user])
+
+  const renderCheckboxCell = useCallback((ticket: Ticket) => {
+    if (!user) return null;
+    
+    return (
+      <TableCell>
+        <input 
+          type="checkbox" 
+          className="rounded border-gray-300"
+          checked={selectedTickets.has(ticket.id)}
+          onChange={() => handleSelectTicket(ticket.id)}
+        />
+      </TableCell>
+    );
+  }, [handleSelectTicket, selectedTickets]);
+
+  // Add navigation handler
+  const handleRowClick = (ticketId: string) => {
+    router.push(`/tickets/${ticketId}`)
+  }
 
   if (loading) {
     return <div>Loading tickets...</div>
@@ -314,7 +334,7 @@ export default function TicketList() {
         <Table>
           <TableHeader>
             <TableRow>
-              <AgentAndAbove>
+              {user && (
                 <TableHead className="w-12">
                   <input 
                     type="checkbox" 
@@ -323,29 +343,24 @@ export default function TicketList() {
                     onChange={handleSelectAll}
                   />
                 </TableHead>
-              </AgentAndAbove>
-              <SortableColumn field="title" onClick={(direction) => setSort('title', direction)}>Title</SortableColumn>
-              <SortableColumn field="status" onClick={(direction) => setSort('status', direction)}>Status</SortableColumn>
-              <SortableColumn field="priority" onClick={(direction) => setSort('priority', direction)}>Priority</SortableColumn>
+              )}
+              <SortableColumn field="title">Title</SortableColumn>
+              <SortableColumn field="status">Status</SortableColumn>
+              <SortableColumn field="priority">Priority</SortableColumn>
               <TableHead>SLA</TableHead>
-              <SortableColumn field="created_at" onClick={(direction) => setSort('created_at', direction)}>Created</SortableColumn>
-              <SortableColumn field="updated_at" onClick={(direction) => setSort('updated_at', direction)}>Updated</SortableColumn>
+              <SortableColumn field="created_at">Created</SortableColumn>
+              <SortableColumn field="updated_at">Updated</SortableColumn>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {currentTickets.map((ticket) => (
-              <TableRow key={ticket.id}>
-                <AgentAndAbove>
-                  <TableCell>
-                    <input 
-                      type="checkbox" 
-                      className="rounded border-gray-300"
-                      checked={selectedTickets.has(ticket.id)}
-                      onChange={() => handleSelectTicket(ticket.id)}
-                    />
-                  </TableCell>
-                </AgentAndAbove>
+              <TableRow 
+                key={ticket.id}
+                onClick={() => handleRowClick(ticket.id)}
+                className="cursor-pointer hover:bg-gray-50"
+              >
+                {renderCheckboxCell(ticket)}
                 <TableCell>{ticket.title}</TableCell>
                 <TableCell>
                   <Badge
@@ -376,24 +391,26 @@ export default function TicketList() {
                 <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
                 <TableCell>{new Date(ticket.updated_at).toLocaleString()}</TableCell>
                 <TableCell>
-                  <NewTicketActions
-                    ticket={ticket}
-                    onEdit={() => router.push(`/tickets/${ticket.id}`)}
-                    onDelete={async () => {
-                      try {
-                        await updateTicket(ticket.id, { status: 'closed' })
-                      } catch (error) {
-                        console.error('Failed to close ticket:', error)
-                      }
-                    }}
-                    onAssign={async (userId) => {
-                      try {
-                        await updateTicket(ticket.id, { assignee: userId })
-                      } catch (error) {
-                        console.error('Failed to assign ticket:', error)
-                      }
-                    }}
-                  />
+                  {user && (
+                    <NewTicketActions
+                      ticket={ticket}
+                      onEdit={() => router.push(`/tickets/${ticket.id}`)}
+                      onDelete={async () => {
+                        try {
+                          await updateTicket(ticket.id, { status: 'closed' })
+                        } catch (error) {
+                          console.error('Failed to close ticket:', error)
+                        }
+                      }}
+                      onAssign={async (userId) => {
+                        try {
+                          await updateTicket(ticket.id, { assignee: userId })
+                        } catch (error) {
+                          console.error('Failed to assign ticket:', error)
+                        }
+                      }}
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             ))}

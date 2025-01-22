@@ -7,17 +7,17 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code')
 
   if (!code) {
-    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin), { status: 303 })
+    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin))
   }
 
-  const supabase = createRouteHandlerClient({ cookies })
+  const cookieStore = cookies()
+  const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
 
   try {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (error) throw error
-    return NextResponse.redirect(new URL('/tickets', requestUrl.origin), { status: 303 })
+    await supabase.auth.exchangeCodeForSession(code)
+    return NextResponse.redirect(new URL('/tickets', requestUrl.origin))
   } catch (error) {
     console.error('Auth error:', error)
-    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin), { status: 303 })
+    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin))
   }
 } 

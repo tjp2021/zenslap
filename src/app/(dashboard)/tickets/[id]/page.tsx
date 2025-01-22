@@ -1,15 +1,17 @@
 import { Suspense } from 'react'
-import { TicketDetails } from '@/components/tickets/TicketDetails'
-import { TicketDetailsSkeleton } from '@/components/tickets/TicketDetailsSkeleton'
+import { TicketDetailsClient } from './TicketDetailsClient'
 
-export default async function TicketPage({ params }: { params: { id: string } }) {
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function TicketDetailsPage({ params }: PageProps) {
+  // Await params since it's Promise-based in Next.js 14
+  const { id } = await params
+  
   return (
-    <div className="min-h-screen bg-[#f5f7f2] p-6">
-      <div className="max-w-2xl mx-auto">
-        <Suspense fallback={<TicketDetailsSkeleton />}>
-          <TicketDetails id={params.id} />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense fallback={<div>Loading...</div>}>
+      <TicketDetailsClient id={id} />
+    </Suspense>
   )
 } 

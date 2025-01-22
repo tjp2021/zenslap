@@ -2,6 +2,21 @@
 
 import { useAuth } from '@/lib/hooks/useAuth'
 import { TicketsProvider } from '@/lib/context/tickets'
+import { memo } from 'react'
+
+const MemoizedTicketsProvider = memo(function MemoizedTicketsProvider({
+  children
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <TicketsProvider>
+      <div className="min-h-screen bg-gray-100">
+        {children}
+      </div>
+    </TicketsProvider>
+  )
+})
 
 export default function DashboardLayout({
   children,
@@ -18,11 +33,5 @@ export default function DashboardLayout({
     return null
   }
 
-  return (
-    <TicketsProvider>
-      <div className="min-h-screen bg-gray-100">
-        {children}
-      </div>
-    </TicketsProvider>
-  )
+  return <MemoizedTicketsProvider>{children}</MemoizedTicketsProvider>
 } 

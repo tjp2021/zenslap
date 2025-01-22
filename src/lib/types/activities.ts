@@ -12,6 +12,7 @@ export type ActivityType = typeof ACTIVITY_TYPES[keyof typeof ACTIVITY_TYPES]
 // Content types for each activity
 export interface CommentContent {
   text: string
+  is_internal: boolean
 }
 
 export interface StatusChangeContent {
@@ -30,19 +31,20 @@ export interface AssignmentContent {
   to: string | null
 }
 
-// Union type for all activity content
-export type ActivityContent = 
-  | { type: typeof ACTIVITY_TYPES.COMMENT; content: CommentContent }
-  | { type: typeof ACTIVITY_TYPES.STATUS_CHANGE; content: StatusChangeContent }
-  | { type: typeof ACTIVITY_TYPES.FIELD_CHANGE; content: FieldChangeContent }
-  | { type: typeof ACTIVITY_TYPES.ASSIGNMENT; content: AssignmentContent }
+// Actor type
+export interface Actor {
+  id: string
+  display_name: string | null
+  email: string
+}
 
 // Main ticket activity interface
 export interface TicketActivity {
   id: string
   ticket_id: string
   actor_id: string
+  actor: Actor
   activity_type: ActivityType
-  content: ActivityContent['content']
+  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
   created_at: string
 } 

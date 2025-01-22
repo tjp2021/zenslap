@@ -186,3 +186,109 @@ parallel_apply({
   - Easy to add caching layer
   - Simple to swap implementations
   - Ready for new features
+
+# API Layer Anti-Pattern Analysis
+
+## 1. Root Problem Identified
+```
+Frontend → /api/routes → Next.js → Supabase → Database
+```
+We discovered an unnecessary layer of indirection with Next.js API routes when Supabase already provides:
+- Direct client access
+- Built-in auth
+- Type safety
+- RLS policies
+
+## 2. Anti-Patterns Fixed
+- Double-wrapping Supabase calls
+- Unnecessary API middleware
+- Extra network hops
+- Duplicate auth handling
+- Redundant service layer
+
+## 3. Contributing Factors
+- Creating services that mimicked Supabase functionality
+- Adding complexity with no benefit
+- Writing boilerplate code for auth that Supabase handles
+- Making simple operations go through multiple layers
+
+## 4. Time Investment Analysis
+- Debugging auth issues that Supabase handles
+- Creating/maintaining unnecessary API routes
+- Writing duplicate type definitions
+- Managing state across multiple layers
+
+## 5. Core Lesson
+We over-engineered a solution when the infrastructure (Supabase) already provided everything we needed. This is a classic case of "not using the platform" and creating unnecessary abstraction.
+
+## Next.js 14 Route Params Analysis
+
+### Problem/Feature Overview
+- Initial Requirements: Access route parameters (params.id) in a ticket details page
+- Key Challenges: Next.js 14 makes route parameters async by default
+- Success Criteria: No infinite loops, proper data loading
+
+### Solution Attempts
+#### Attempt #1: Component Optimization
+- Approach: Added memoization to Activities component
+- Implementation: Used React.memo and useCallback
+- Outcome: Failed - didn't address root cause
+- Learnings: Performance optimizations don't fix architectural issues
+
+#### Attempt #2: Hook Refactoring
+- Approach: Fixed useTicketActivities hook
+- Implementation: Added pre-defined fetch functions
+- Outcome: Failed - still accessing Promise directly
+- Learnings: Hook implementation wasn't the core issue
+
+#### Attempt #3: Auth Synchronization
+- Approach: Added auth checks to hooks
+- Implementation: Gated data fetching behind auth state
+- Outcome: Failed - didn't solve Promise access
+- Learnings: Auth wasn't related to the core problem
+
+### Final Solution
+#### Implementation Details
+```typescript
+// Server Component (page.tsx)
+export default function Page({ params }) {
+  return <ClientComponent id={params.id} />
+}
+
+// Client Component (separate file)
+'use client'
+export function ClientComponent({ id }) {
+  const { data } = useData(id)
+}
+```
+
+#### Why It Works
+- Server components can safely access async route parameters
+- Client components receive unwrapped values
+- Maintains proper Next.js 14 data flow
+
+#### Key Components
+1. Server-side parameter unwrapping
+2. Clean server/client boundary
+3. Proper prop passing
+
+### Key Lessons
+#### Technical Insights
+- Route parameters in Next.js 14 are async by default
+- Server components are needed for parameter access
+- Client/server component split is crucial
+
+#### Process Improvements
+- Read error messages carefully
+- Focus on architectural issues first
+- Understand framework constraints
+
+#### Best Practices
+- Split components based on data access needs
+- Keep server/client boundary clean
+- Pass unwrapped values as props
+
+#### Anti-Patterns to Avoid
+- Accessing route params directly in client components
+- Fixing symptoms instead of causes
+- Ignoring framework architecture

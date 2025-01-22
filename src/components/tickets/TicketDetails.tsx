@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -14,12 +14,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Ticket, TICKET_PRIORITIES, TICKET_STATUSES } from '@/lib/types'
+import { Ticket } from '@/lib/types'
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Trash2, Clock } from "lucide-react"
+import { AlertCircle, Trash2, Clock, Tag, User, MessageSquare, CheckCircle2, XCircle } from "lucide-react"
 import { updateTicketSchema } from '@/lib/validation/tickets'
-import { useAuth } from '@/lib/hooks/useAuth'
+import { useAuth } from '@/hooks/useAuth'
 import { can, TicketActions } from '@/lib/permissions'
+import { useTicket } from '@/hooks/useTicketData'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +33,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { formatDistanceToNow } from 'date-fns'
+import { Separator } from "@/components/ui/separator"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 
 interface TicketHistory {
   id: string
@@ -46,37 +51,15 @@ interface TicketDetailsProps {
 
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
-  const { user, supabase } = useAuth()
-  const [ticket, setTicket] = useState<Ticket | null>(null)
+  const { user } = useAuth()
+  const supabase = createClientComponentClient()
+  const { ticket, isLoading, isError, mutate } = useTicket(id)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [deleting, setDeleting] = useState(false)
   const [history, setHistory] = useState<TicketHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-
-  const loadTicket = useCallback(async () => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('tickets')
-        .select('*')
-        .eq('id', id)
-        .single()
-        .headers({
-          'Accept': 'application/vnd.pgrst.object+json',
-          'Prefer': 'return=representation'
-        })
-      
-      if (fetchError) {
-        setError(fetchError.message)
-      } else {
-        setTicket(data)
-      }
-    } catch {
-      setError('Failed to load ticket')
-    }
-  }, [supabase, id])
 
   const loadHistory = useCallback(async () => {
     setLoadingHistory(true)
@@ -99,34 +82,9 @@ export function TicketDetails({ id }: TicketDetailsProps) {
     }
   }, [supabase, id])
 
-  useEffect(() => {
-    loadTicket()
-    loadHistory()
-  }, [loadTicket, loadHistory])
-
-  useEffect(() => {
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel('tickets')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'tickets',
-        filter: `id=eq.${id}` 
-      }, (payload: { new: Ticket }) => {
-        setTicket(payload.new)
-      })
-      .subscribe()
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [id, supabase])
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setSaving(true)
-    setError(null)
     setValidationErrors({})
 
     const formData = new FormData(e.currentTarget)
@@ -148,9 +106,9 @@ export function TicketDetails({ id }: TicketDetailsProps) {
         .single()
 
       if (updateError) {
-        setError(updateError.message)
+        throw updateError
       } else {
-        setTicket(updatedTicket)
+        await mutate(updatedTicket)
         setIsEditing(false)
       }
     } catch (err: unknown) {
@@ -161,8 +119,6 @@ export function TicketDetails({ id }: TicketDetailsProps) {
           errors[field] = error.message
         })
         setValidationErrors(errors)
-      } else {
-        setError('Failed to update ticket')
       }
     } finally {
       setSaving(false)
@@ -171,7 +127,6 @@ export function TicketDetails({ id }: TicketDetailsProps) {
 
   async function handleDelete() {
     setDeleting(true)
-    setError(null)
 
     try {
       const { error: deleteError } = await supabase
@@ -180,12 +135,12 @@ export function TicketDetails({ id }: TicketDetailsProps) {
         .eq('id', id)
 
       if (deleteError) {
-        setError(deleteError.message)
+        throw deleteError
       } else {
         router.push('/tickets')
       }
-    } catch {
-      setError('Failed to delete ticket')
+    } catch (error) {
+      console.error('Failed to delete ticket:', error)
     } finally {
       setDeleting(false)
     }
@@ -193,7 +148,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
 
   // Check permissions
   const canEditTicket = useCallback((field?: keyof Ticket) => {
-    if (!ticket) return false
+    if (!ticket || !user) return false
     if (field) {
       return can(TicketActions[`EDIT_${field.toUpperCase()}` as keyof typeof TicketActions], user, ticket)
     }
@@ -201,214 +156,248 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   }, [user, ticket])
 
   const canDeleteTicket = useCallback(() => {
-    if (!ticket) return false
+    if (!ticket || !user) return false
     return can(TicketActions.DELETE, user, ticket)
   }, [user, ticket])
 
-  if (error) {
+  if (isError) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="flex items-center justify-center min-h-[400px] text-red-600">
+        <p>Failed to load ticket details</p>
+      </div>
     )
   }
 
-  if (!ticket) {
+  if (isLoading || !ticket) {
     return (
-      <Alert>
-        <AlertDescription>Ticket not found</AlertDescription>
-      </Alert>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner />
+      </div>
     )
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority.toLowerCase()) {
+      case 'high':
+        return 'bg-red-100 text-red-800 border-red-200'
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'low':
+        return 'bg-green-100 text-green-800 border-green-200'
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'open':
+        return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'in_progress':
+        return 'bg-purple-100 text-purple-800 border-purple-200'
+      case 'resolved':
+        return 'bg-green-100 text-green-800 border-green-200'
+      case 'closed':
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
   }
 
   return (
-    <>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Ticket Details</h1>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            onClick={() => router.push('/tickets')}
-          >
-            Back
-          </Button>
-          {canEditTicket() && (
+    <Card className="p-6">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            {isEditing ? (
+              <Input
+                name="title"
+                defaultValue={ticket.title}
+                disabled={!canEditTicket('title')}
+                className="text-xl font-semibold"
+                placeholder="Ticket title"
+                onChange={(e) => {
+                  if (canEditTicket('title')) {
+                    setValidationErrors({ ...validationErrors, title: e.target.value })
+                  }
+                }}
+              />
+            ) : (
+              <h1 className="text-xl font-semibold text-gray-900">{ticket.title}</h1>
+            )}
+            <div className="flex items-center space-x-4 text-sm text-gray-500">
+              <div className="flex items-center space-x-1">
+                <Clock className="h-4 w-4" />
+                <span>Created {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <MessageSquare className="h-4 w-4" />
+                <span>{ticket.comment_count || 0} comments</span>
+              </div>
+            </div>
+          </div>
+          {canEditTicket() && !isEditing && (
             <Button
-              onClick={() => setIsEditing(!isEditing)}
-              disabled={saving || deleting}
+              onClick={() => setIsEditing(true)}
+              variant="outline"
+              className="text-gray-600 hover:text-gray-900"
             >
-              {isEditing ? 'Cancel' : 'Edit'}
+              Edit Ticket
             </Button>
           )}
-          {canDeleteTicket() && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={deleting}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the ticket.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
         </div>
-      </div>
 
-      <Card>
-        <CardContent className="p-6">
-          {isEditing ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Input
-                  name="title"
-                  defaultValue={ticket.title}
-                  disabled={!canEditTicket('title')}
-                />
-                {validationErrors.title && (
-                  <p className="text-sm text-red-500 mt-1">{validationErrors.title}</p>
-                )}
-              </div>
+        <Separator />
 
-              <div>
+        {/* Main Content */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-2 space-y-6">
+            {/* Description */}
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-700">Description</h2>
+              {isEditing ? (
                 <Textarea
                   name="description"
                   defaultValue={ticket.description}
                   disabled={!canEditTicket('description')}
+                  className="min-h-[200px]"
+                  placeholder="Ticket description"
+                  onChange={(e) => {
+                    if (canEditTicket('description')) {
+                      setValidationErrors({ ...validationErrors, description: e.target.value })
+                    }
+                  }}
                 />
-                {validationErrors.description && (
-                  <p className="text-sm text-red-500 mt-1">{validationErrors.description}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Select
-                    name="status"
-                    defaultValue={ticket.status}
-                    disabled={!canEditTicket('status')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TICKET_STATUSES.map(status => (
-                        <SelectItem key={status} value={status}>
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {validationErrors.status && (
-                    <p className="text-sm text-red-500 mt-1">{validationErrors.status}</p>
-                  )}
+              ) : (
+                <div className="prose prose-sm max-w-none">
+                  {ticket.description || 'No description provided.'}
                 </div>
+              )}
+            </div>
+          </div>
 
-                <div>
-                  <Select
-                    name="priority"
-                    defaultValue={ticket.priority}
-                    disabled={!canEditTicket('priority')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TICKET_PRIORITIES.map(priority => (
-                        <SelectItem key={priority} value={priority}>
-                          {priority}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {validationErrors.priority && (
-                    <p className="text-sm text-red-500 mt-1">{validationErrors.priority}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditing(false)}
-                  disabled={saving}
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Status */}
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-700">Status</h2>
+              {isEditing ? (
+                <Select
+                  name="status"
+                  defaultValue={ticket.status}
+                  disabled={!canEditTicket('status')}
+                  onValueChange={(value) => {
+                    if (canEditTicket('status')) {
+                      setValidationErrors({ ...validationErrors, status: value })
+                    }
+                  }}
                 >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="space-y-2">
-                    <div>
-                      <h2 className="text-lg font-semibold">Title</h2>
-                      <p>{ticket.title}</p>
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold">Description</h2>
-                      <p>{ticket.description}</p>
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold">Status</h2>
-                      <Badge>{ticket.status}</Badge>
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold">Priority</h2>
-                      <Badge>{ticket.priority}</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge className={`${getStatusColor(ticket.status)}`}>
+                  {ticket.status.replace('_', ' ')}
+                </Badge>
+              )}
+            </div>
 
-              {/* History Section */}
-              <div className="mt-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <Clock className="h-5 w-5" />
-                  <h2 className="text-lg font-semibold">History</h2>
-                </div>
-                {loadingHistory ? (
-                  <p>Loading history...</p>
-                ) : history.length === 0 ? (
-                  <p className="text-gray-500">No changes recorded</p>
-                ) : (
-                  <div className="space-y-2">
-                    {history.map((entry) => (
-                      <div key={entry.id} className="text-sm text-gray-600">
-                        <span>
-                          {entry.field} changed from{' '}
-                          <Badge variant="secondary">{entry.old_value || 'none'}</Badge>
-                          {' '}to{' '}
-                          <Badge variant="secondary">{entry.new_value}</Badge>
-                        </span>
-                        <span className="text-gray-400 ml-2">
-                          ({new Date(entry.created_at).toLocaleString()})
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            {/* Priority */}
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-700">Priority</h2>
+              {isEditing ? (
+                <Select
+                  name="priority"
+                  defaultValue={ticket.priority}
+                  disabled={!canEditTicket('priority')}
+                  onValueChange={(value) => {
+                    if (canEditTicket('priority')) {
+                      setValidationErrors({ ...validationErrors, priority: value })
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge className={`${getPriorityColor(ticket.priority)}`}>
+                  {ticket.priority}
+                </Badge>
+              )}
+            </div>
+
+            {/* Assignee */}
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
+              <div className="flex items-center space-x-2">
+                <User className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">
+                  {ticket.assignee || 'Unassigned'}
+                </span>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </>
+            </div>
+
+            {/* Tags */}
+            {ticket.tags && ticket.tags.length > 0 && (
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium text-gray-700">Tags</h2>
+                <div className="flex flex-wrap gap-2">
+                  {ticket.tags.map((tag: string) => (
+                    <div key={tag} className="flex items-center space-x-1">
+                      <Tag className="h-3 w-3 text-gray-400" />
+                      <span className="text-sm text-gray-600">{tag}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Edit Form Actions */}
+        {isEditing && (
+          <div className="flex items-center justify-end space-x-4 pt-4 border-t">
+            {Object.values(validationErrors).map((error, index) => (
+              <div key={index} className="flex items-center text-red-600 text-sm">
+                <AlertCircle className="h-4 w-4 mr-1" />
+                {error}
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditing(false)
+                setValidationErrors({})
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="ticket-details-form"
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </Card>
   )
 } 

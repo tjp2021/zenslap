@@ -9,6 +9,23 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      users_secure: {
+        Row: {
+          id: string
+          role: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          role: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          role?: string
+          created_at?: string
+        }
+      }
       users: {
         Row: {
           id: string

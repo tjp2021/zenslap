@@ -1,26 +1,32 @@
 import useSWR from 'swr'
-import type { TicketActivity } from '@/lib/types/activities'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
 
 export function useTicketUpdates(ticketId: string) {
-  const { data, error, isLoading, mutate } = useSWR<TicketActivity[]>(
-    ticketId ? `/api/tickets/${ticketId}/activities` : null,
+  const { data, error, mutate } = useSWR(
+    ticketId ? `ticket-updates-${ticketId}` : null,
     async () => {
-      const response = await fetch(`/api/tickets/${ticketId}/activities`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch ticket activities')
-      }
-      return response.json()
+      const supabase = createClientComponentClient<Database>()
+      const { data, error } = await supabase
+        .from('ticket_activities')
+        .select()
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true })
+      
+      if (error) throw error
+      return { data }
     },
     {
-      refreshInterval: 5000, // Refresh every 5 seconds
-      revalidateOnFocus: true
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 5000 // 5 seconds
     }
   )
 
   return {
-    activities: data || [],
-    loading: isLoading,
-    error,
-    refresh: () => mutate()
+    updates: data?.data || [],
+    isLoading: !error && !data,
+    isError: error,
+    mutate
   }
 } 

@@ -1,33 +1,49 @@
-import { useState, useEffect } from 'react'
+import useSWR from 'swr'
 import type { TicketCounts } from '@/lib/api/routes/tickets'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
 
-export function useTicketCounts(userId: string | undefined) {
-	const [counts, setCounts] = useState<TicketCounts>({ personal: 0, group: 0 })
-	const [loading, setLoading] = useState(true)
-	const [error, setError] = useState<Error | null>(null)
+export function useTicketCounts(userId: string) {
+	const { data, error } = useSWR(
+		userId ? `ticket-counts-${userId}` : null,
+		async () => {
+			const supabase = createClientComponentClient<Database>()
+			
+			// Get personal tickets (assigned directly to user)
+			const { data: personalTickets, error: personalError } = await supabase
+				.from('tickets')
+				.select('*')
+				.eq('assignee', userId)
+				.eq('status', 'open')
+			
+			if (personalError) throw personalError
 
-	useEffect(() => {
-		// Don't fetch if no userId
-		if (!userId) {
-			setLoading(false)
-			return
-		}
+			// Get group tickets (unassigned or assigned to others)
+			const { data: groupTickets, error: groupError } = await supabase
+				.from('tickets')
+				.select('*')
+				.neq('assignee', userId)
+				.eq('status', 'open')
+			
+			if (groupError) throw groupError
 
-		async function fetchCounts() {
-			try {
-				const response = await fetch(`/api/tickets/counts?userId=${userId}`)
-				if (!response.ok) throw new Error('Failed to fetch ticket counts')
-				const data = await response.json()
-				setCounts(data)
-			} catch (err) {
-				setError(err instanceof Error ? err : new Error('Unknown error'))
-			} finally {
-				setLoading(false)
+			return {
+				data: {
+					personal: personalTickets.length,
+					group: groupTickets.length
+				}
 			}
+		},
+		{
+			revalidateOnFocus: true,
+			revalidateOnReconnect: true,
+			dedupingInterval: 30000 // 30 seconds
 		}
+	)
 
-		fetchCounts()
-	}, [userId])
-
-	return { counts, loading, error }
+	return {
+		counts: data?.data || { personal: 0, group: 0 },
+		isLoading: !error && !data,
+		isError: error
+	}
 } 
