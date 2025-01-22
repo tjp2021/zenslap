@@ -1,30 +1,28 @@
-import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import { ticketService } from '@/lib/api/routes/tickets'
 import type { TicketStatistics } from '@/lib/api/routes/tickets'
 
+const CACHE_KEY = 'ticket-statistics'
+
 export function useTicketStatistics() {
-  const [stats, setStats] = useState<TicketStatistics>({ good: 0, bad: 0, solved: 0 })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
-
-  useEffect(() => {
-    async function fetchStats() {
-      setLoading(true)
-      setError(null)
-      
-      const { data, error: fetchError } = await ticketService.getWeeklyStatistics()
-      
-      if (fetchError) {
-        setError(typeof fetchError === 'string' ? new Error(fetchError) : fetchError)
-      } else if (data) {
-        setStats(data)
-      }
-      
-      setLoading(false)
+  const { data, error, isLoading, mutate } = useSWR(
+    CACHE_KEY,
+    async () => {
+      const { data, error } = await ticketService.getWeeklyStatistics()
+      if (error) throw error
+      return data
+    },
+    {
+      refreshInterval: 30000, // Refresh every 30 seconds
+      revalidateOnFocus: true,
+      fallbackData: { good: 0, bad: 0, solved: 0 }
     }
+  )
 
-    fetchStats()
-  }, [])
-
-  return { stats, loading, error }
+  return {
+    stats: data || { good: 0, bad: 0, solved: 0 },
+    loading: isLoading,
+    error,
+    refresh: () => mutate()
+  }
 } 
