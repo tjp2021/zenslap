@@ -37,8 +37,8 @@ create table if not exists workflows (
     name text not null,
     description text,
     trigger jsonb not null,
-    conditions jsonb[] not null default '[]'::jsonb[],
-    actions jsonb[] not null default '[]'::jsonb[],
+    conditions jsonb[] not null default array[]::jsonb[],
+    actions jsonb[] not null default array[]::jsonb[],
     is_active boolean not null default true,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()

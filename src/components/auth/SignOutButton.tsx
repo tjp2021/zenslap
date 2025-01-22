@@ -1,14 +1,12 @@
-import { createBrowserClient } from '@supabase/ssr'
+'use client'
+
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LogOut } from 'lucide-react'
+import { supabase } from '@/lib/supabase/client'
 
 export function SignOutButton() {
   const router = useRouter()
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()

@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import type { Ticket } from '@/lib/types'
-
-const supabase = createClient()
 
 export interface QueueRule {
   priority: string

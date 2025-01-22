@@ -42,19 +42,42 @@ const fetchTickets = async ({ page = 1, pageSize = PAGE_SIZE }) => {
 
 // Add user fetcher
 const fetchUsers = async () => {
-  const { data: session } = await supabase.auth.getSession()
-  
-  if (!session?.session?.user) {
-    throw new Error('Not authenticated')
+  try {
+    // Get session first
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError || !session) {
+      console.error('Session error:', sessionError)
+      throw new Error('No active session')
+    }
+
+    // Force session refresh to ensure we have latest claims
+    const { data: { session: refreshedSession }, error: refreshError } = 
+      await supabase.auth.refreshSession()
+    
+    if (refreshError || !refreshedSession) {
+      console.error('Session refresh error:', refreshError)
+      throw new Error('Could not refresh session')
+    }
+
+    console.log('Refreshed session:', refreshedSession)
+    console.log('Access token:', refreshedSession.access_token)
+
+    // Now try to fetch users with refreshed session
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, role')
+
+    if (error) {
+      console.error('User fetch error:', error)
+      throw error
+    }
+    
+    console.log('Fetched users:', data)
+    return data
+  } catch (err) {
+    console.error('Fetch users error:', err)
+    throw err
   }
-
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, email, role, full_name, avatar_url')
-    .eq('id', session.session.user.id)
-
-  if (error) throw error
-  return data
 }
 
 // Hook for fetching a single ticket
