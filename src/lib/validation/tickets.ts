@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { TICKET_PRIORITIES, TICKET_STATUSES } from '../types'
+import { ACTIVITY_TYPES, type ActivityType, type ActivityContent } from '../types/activities'
 
 export const createTicketSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
@@ -18,38 +19,53 @@ export const updateTicketSchema = z.object({
   metadata: z.record(z.unknown()).optional()
 })
 
-const ACTIVITY_TYPES = ['comment', 'note', 'status_change', 'field_change'] as const
-
 const commentContentSchema = z.object({
   message: z.string().min(1, 'Message is required'),
   format: z.literal('text')
-})
-
-const noteContentSchema = z.object({
-  message: z.string().min(1, 'Message is required'),
-  format: z.literal('text')
-})
+}) satisfies z.ZodType<ActivityContent['comment']>
 
 const statusChangeContentSchema = z.object({
   from: z.enum(TICKET_STATUSES),
   to: z.enum(TICKET_STATUSES)
-})
+}) satisfies z.ZodType<ActivityContent['status_change']>
 
 const fieldChangeContentSchema = z.object({
   field: z.string(),
   from: z.string(),
   to: z.string()
-})
+}) satisfies z.ZodType<ActivityContent['field_change']>
+
+const assignmentContentSchema = z.object({
+  from: z.string().uuid().nullable(),
+  to: z.string().uuid().nullable()
+}) satisfies z.ZodType<ActivityContent['assignment']>
 
 export const createActivitySchema = z.object({
   ticket_id: z.string().uuid('Invalid ticket ID'),
-  activity_type: z.enum(ACTIVITY_TYPES),
-  is_internal: z.boolean().optional().default(false),
-  parent_id: z.string().uuid('Invalid parent activity ID').optional(),
+  activity_type: z.nativeEnum(ACTIVITY_TYPES),
   content: z.discriminatedUnion('activity_type', [
-    z.object({ activity_type: z.literal('comment'), content: commentContentSchema }),
-    z.object({ activity_type: z.literal('note'), content: noteContentSchema }),
-    z.object({ activity_type: z.literal('status_change'), content: statusChangeContentSchema }),
-    z.object({ activity_type: z.literal('field_change'), content: fieldChangeContentSchema })
+    z.object({ activity_type: z.literal(ACTIVITY_TYPES.COMMENT), content: commentContentSchema }),
+    z.object({ activity_type: z.literal(ACTIVITY_TYPES.STATUS_CHANGE), content: statusChangeContentSchema }),
+    z.object({ activity_type: z.literal(ACTIVITY_TYPES.FIELD_CHANGE), content: fieldChangeContentSchema }),
+    z.object({ activity_type: z.literal(ACTIVITY_TYPES.ASSIGNMENT), content: assignmentContentSchema })
   ]).transform(data => data.content)
+})
+
+export const ticketActivitySchema = z.object({
+  id: z.string().uuid(),
+  ticket_id: z.string().uuid(),
+  actor_id: z.string().uuid().nullable(),
+  activity_type: z.nativeEnum(ACTIVITY_TYPES),
+  content: z.union([
+    commentContentSchema,
+    statusChangeContentSchema,
+    fieldChangeContentSchema,
+    assignmentContentSchema
+  ]),
+  created_at: z.string().datetime()
+})
+
+export const ticketActivityResponseSchema = z.object({
+  data: z.array(ticketActivitySchema).nullable(),
+  error: z.string().nullable()
 }) 

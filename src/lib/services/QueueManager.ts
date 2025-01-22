@@ -53,7 +53,7 @@ export class QueueManager {
 
   async findAvailableAgent(priority: string): Promise<string | null> {
     const { data: agents } = await supabase
-      .from('users')
+      .from('users_secure')
       .select('id')
       .eq('role', 'agent')
 

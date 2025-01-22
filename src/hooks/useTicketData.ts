@@ -2,6 +2,8 @@ import useSWR, { mutate } from 'swr'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Ticket } from '@/lib/types'
 import { useState } from 'react'
+import { ticketService } from '@/lib/api/routes/tickets'
+import type { TicketActivity } from '@/lib/api/routes/tickets'
 
 // Initialize with proper options
 const supabase = createClientComponentClient({
@@ -269,5 +271,23 @@ export function useTicketMutations() {
     deleteTicket,
     bulkUpdateTickets,
     assignTickets,
+  }
+}
+
+// Hook for ticket activities
+export function useTicketActivities(ticketId: string) {
+  const { data, error, isLoading, mutate } = useSWR(
+    ticketId ? `ticket-activities-${ticketId}` : null,
+    () => ticketService.getTicketActivities(ticketId)
+  )
+
+  const activities = data?.data || []
+  const fetchError = error || data?.error
+
+  return {
+    activities,
+    error: fetchError,
+    isLoading,
+    mutate
   }
 } 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import TicketList from '@/components/tickets/TicketList'
 import TicketListSkeleton from '@/components/tickets/TicketListSkeleton'
 import { SignOutButton } from '@/components/auth/SignOutButton'
+import { OpenTicketsCounter } from '@/components/tickets/OpenTicketsCounter'
 
 export default function TicketsPage() {
   return (
@@ -59,21 +60,7 @@ export default function TicketsPage() {
         <main className="flex-1 p-6">
           {/* Statistics */}
           <div className="grid gap-6 md:grid-cols-2 mb-6">
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="text-sm font-medium mb-2">Open Tickets (current)</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-                    <div className="text-2xl font-bold text-[#2d6847]">5</div>
-                    <div className="text-sm text-muted-foreground">YOU</div>
-                  </div>
-                  <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-                    <div className="text-2xl font-bold text-[#2d6847]">5</div>
-                    <div className="text-sm text-muted-foreground">GROUPS</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <OpenTicketsCounter />
             <Card>
               <CardContent className="p-4">
                 <h3 className="text-sm font-medium mb-2">Ticket Statistics (this week)</h3>

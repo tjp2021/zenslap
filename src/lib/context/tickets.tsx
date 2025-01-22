@@ -219,7 +219,7 @@ export function TicketsProvider({
   const loadUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('users_secure')
         .select('*')
       
       if (error) throw error
