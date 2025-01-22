@@ -3,7 +3,16 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Ticket } from '@/lib/types'
 import { useState } from 'react'
 
-const supabase = createClientComponentClient()
+// Initialize with proper options
+const supabase = createClientComponentClient({
+  options: {
+    global: {
+      headers: {
+        'X-Client-Info': '@supabase/auth-helpers-nextjs'
+      }
+    }
+  }
+})
 
 const PAGE_SIZE = 20
 
@@ -43,40 +52,49 @@ const fetchTickets = async ({ page = 1, pageSize = PAGE_SIZE }) => {
 // Add user fetcher
 const fetchUsers = async () => {
   try {
-    // Get session first
+    // Get session first to ensure user is authenticated
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError || !session) {
       console.error('Session error:', sessionError)
-      throw new Error('No active session')
+      return [] // Return empty array instead of throwing
     }
 
-    // Force session refresh to ensure we have latest claims
-    const { data: { session: refreshedSession }, error: refreshError } = 
-      await supabase.auth.refreshSession()
-    
-    if (refreshError || !refreshedSession) {
-      console.error('Session refresh error:', refreshError)
-      throw new Error('Could not refresh session')
-    }
+    console.log('Current session:', session)
 
-    console.log('Refreshed session:', refreshedSession)
-    console.log('Access token:', refreshedSession.access_token)
+    // Get all users from secure table
+    const { data: users, error: usersError } = await supabase
+      .from('users_secure')
+      .select('id, email, role, display_name, created_at')
+      .order('email')
 
-    // Now try to fetch users with refreshed session
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, email, role')
-
-    if (error) {
-      console.error('User fetch error:', error)
-      throw error
+    if (usersError) {
+      console.error('User fetch error:', usersError)
+      console.error('Error details:', {
+        code: usersError.code,
+        message: usersError.message,
+        details: usersError.details,
+        hint: usersError.hint
+      })
+      return [] // Return empty array instead of throwing
     }
     
-    console.log('Fetched users:', data)
-    return data
+    console.log('Fetched users:', users)
+    
+    return users?.map(user => ({
+      ...user,
+      // Provide fallback display name if not set
+      display_name: user.display_name || user.email.split('@')[0]
+    })) || []
   } catch (err) {
     console.error('Fetch users error:', err)
-    throw err
+    if (err instanceof Error) {
+      console.error('Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      })
+    }
+    return [] // Return empty array instead of throwing
   }
 }
 
