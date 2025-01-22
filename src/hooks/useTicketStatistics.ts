@@ -1,16 +1,17 @@
 import useSWR from 'swr'
-import { ticketService } from '@/lib/api/routes/tickets'
 import type { TicketStatistics } from '@/lib/api/routes/tickets'
 
 const CACHE_KEY = 'ticket-statistics'
 
 export function useTicketStatistics() {
-  const { data, error, isLoading, mutate } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR<TicketStatistics>(
     CACHE_KEY,
     async () => {
-      const { data, error } = await ticketService.getStatistics()
-      if (error) throw error
-      return data
+      const response = await fetch('/api/tickets/statistics')
+      if (!response.ok) {
+        throw new Error('Failed to fetch ticket statistics')
+      }
+      return response.json()
     },
     {
       refreshInterval: 30000, // Refresh every 30 seconds

@@ -1,36 +1,53 @@
-import { NextRequest } from 'next/server'
-import { createHandler } from '@/lib/api/utils'
-import { createTicketSchema } from '@/lib/validation/tickets'
-import { ZodError } from 'zod'
-import { createApiClient } from '@/lib/supabase/server'
-import { Database } from '@/types/supabase'
+'use server'
 
-type Ticket = Database['public']['Tables']['tickets']['Row']
+import { NextResponse } from 'next/server'
+import { ticketService } from '@/lib/api/routes/tickets'
 
-// GET /api/tickets - List all tickets
-export const GET = (req: NextRequest) => createHandler<Ticket[]>(req, async () => {
-  const supabase = createApiClient()
-  const { data, error } = await supabase
-    .from('tickets')
-    .select('*')
-    .order('created_at', { ascending: false })
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status')
+  const priority = searchParams.get('priority')
+  const assignee = searchParams.get('assignee')
   
-  if (error) throw error
-  return data
-})
+  const response = await ticketService.getAll()
+  if (response.error) {
+    return NextResponse.json({ error: response.error }, { status: 500 })
+  }
 
-// POST /api/tickets - Create a new ticket
-export const POST = (req: NextRequest) => createHandler<Ticket>(req, async () => {
-  const body = await req.json()
-  const validatedData = createTicketSchema.parse(body)
+  let tickets = response.data || []
   
-  const supabase = createApiClient()
-  const { data, error } = await supabase
-    .from('tickets')
-    .insert([validatedData])
-    .select()
-    .single()
+  // Apply filters
+  if (status) {
+    tickets = tickets.filter(t => t.status === status)
+  }
+  if (priority) {
+    tickets = tickets.filter(t => t.priority === priority)
+  }
+  if (assignee) {
+    tickets = tickets.filter(t => t.assignee === assignee)
+  }
   
-  if (error) throw error
-  return data
-}) 
+  return NextResponse.json(tickets)
+}
+
+export async function POST(request: Request) {
+  const body = await request.json()
+  const response = await ticketService.create(body)
+  
+  if (response.error) {
+    return NextResponse.json({ error: response.error }, { status: 500 })
+  }
+  
+  return NextResponse.json(response.data)
+}
+
+export async function PATCH(request: Request) {
+  const { id, ...updates } = await request.json()
+  const response = await ticketService.update(id, updates)
+  
+  if (response.error) {
+    return NextResponse.json({ error: response.error }, { status: 500 })
+  }
+  
+  return NextResponse.json(response.data)
+} 

@@ -1,11 +1,18 @@
+'use client'
+
 import { Card, CardContent } from "@/components/ui/card"
 import { useTicketCounts } from "@/hooks/useTicketCounts"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAuth } from '@/lib/hooks/useAuth'
 
 export function OpenTicketsCounter() {
-	const { counts, loading, error } = useTicketCounts()
+	const { user, loading: authLoading } = useAuth()
+	const { counts, loading: countsLoading, error } = useTicketCounts(user?.id)
 
-	if (loading) {
+	// Show loading state while auth is loading or if we have a user and counts are loading
+	const isLoading = authLoading || (user && countsLoading)
+
+	if (isLoading) {
 		return (
 			<Card>
 				<CardContent className="p-6">
@@ -24,6 +31,8 @@ export function OpenTicketsCounter() {
 			</Card>
 		)
 	}
+
+	if (!user) return null
 
 	if (error) {
 		return (

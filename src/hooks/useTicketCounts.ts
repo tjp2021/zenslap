@@ -1,40 +1,33 @@
-import { useEffect, useState } from 'react'
-import { ticketService } from '@/lib/api/routes/tickets'
+import { useState, useEffect } from 'react'
 import type { TicketCounts } from '@/lib/api/routes/tickets'
-import { useAuth } from '@/lib/hooks/useAuth'
 
-export function useTicketCounts() {
+export function useTicketCounts(userId: string | undefined) {
 	const [counts, setCounts] = useState<TicketCounts>({ personal: 0, group: 0 })
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<Error | null>(null)
-	const { user, loading: authLoading } = useAuth()
 
 	useEffect(() => {
-		// Don't fetch if still loading auth
-		if (authLoading) return
+		// Don't fetch if no userId
+		if (!userId) {
+			setLoading(false)
+			return
+		}
 
 		async function fetchCounts() {
-			if (!user?.id) {
-				setLoading(false)
-				return
-			}
-
-			setLoading(true)
-			setError(null)
-			
-			const { data, error: apiError } = await ticketService.getCounts(user.id)
-			
-			if (apiError) {
-				setError(new Error(String(apiError)))
-			} else if (data) {
+			try {
+				const response = await fetch(`/api/tickets/counts?userId=${userId}`)
+				if (!response.ok) throw new Error('Failed to fetch ticket counts')
+				const data = await response.json()
 				setCounts(data)
+			} catch (err) {
+				setError(err instanceof Error ? err : new Error('Unknown error'))
+			} finally {
+				setLoading(false)
 			}
-			
-			setLoading(false)
 		}
 
 		fetchCounts()
-	}, [user?.id, authLoading])
+	}, [userId])
 
-	return { counts, loading: loading || authLoading, error }
+	return { counts, loading, error }
 } 

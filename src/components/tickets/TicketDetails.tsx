@@ -17,8 +17,8 @@ import { Badge } from "@/components/ui/badge"
 import { Ticket, TICKET_PRIORITIES, TICKET_STATUSES } from '@/lib/types'
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Trash2, Clock } from "lucide-react"
-import { createBrowserClient } from '@supabase/ssr'
 import { updateTicketSchema } from '@/lib/validation/tickets'
+import { useAuth } from '@/lib/hooks/useAuth'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +45,7 @@ interface TicketDetailsProps {
 
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
+  const { supabase } = useAuth()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,10 +54,6 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   const [deleting, setDeleting] = useState(false)
   const [history, setHistory] = useState<TicketHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   const loadTicket = useCallback(async () => {
     try {

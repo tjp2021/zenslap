@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { Ticket } from "@/lib/types"
-import { QueueManager } from "@/lib/services/QueueManager"
+import { SLACalculator } from "@/lib/services/SLACalculator"
 import { Clock } from 'lucide-react'
 
 interface SLAIndicatorProps {
@@ -8,8 +8,8 @@ interface SLAIndicatorProps {
 }
 
 export function SLAIndicator({ ticket }: SLAIndicatorProps) {
-  const queueManager = new QueueManager()
-  const deadline = queueManager.getSLADeadline(ticket)
+  const calculator = new SLACalculator()
+  const deadline = calculator.getSLADeadline(ticket)
   const now = new Date()
   const timeLeft = deadline.getTime() - now.getTime()
   const hoursLeft = Math.max(0, Math.floor(timeLeft / (1000 * 60 * 60)))

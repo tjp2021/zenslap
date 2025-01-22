@@ -1,4 +1,6 @@
-import { createServerClient } from '@/lib/supabase/component-server'
+'use server'
+
+import { createApiClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/supabase'
 
 type QueueStatus = 'pending' | 'processing' | 'completed' | 'failed'
@@ -13,25 +15,44 @@ interface QueueItem {
 
 export class QueueManager {
   async addToQueue(item: Omit<QueueItem, 'id' | 'created_at' | 'status'>) {
-    const res = await fetch('/api/queue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item)
-    })
-    
-    if (!res.ok) throw new Error('Failed to add to queue')
-    return res.json()
+    try {
+      const supabase = createApiClient()
+      const { data, error } = await supabase
+        .from('queue')
+        .insert([{ ...item, status: 'pending' }])
+        .select()
+        .single()
+
+      if (error) throw error
+      return data as QueueItem
+    } catch (error) {
+      console.error('Failed to add item to queue:', error)
+      throw error
+    }
   }
 
-  async getNextItem(): Promise<QueueItem | null> {
-    const res = await fetch('/api/queue')
-    if (!res.ok) throw new Error('Failed to get next item')
-    return res.json()
+  async getNextItem() {
+    try {
+      const supabase = createApiClient()
+      const { data, error } = await supabase
+        .from('queue')
+        .select()
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      if (error && error.code !== 'PGRST116') throw error
+      return data as QueueItem | null
+    } catch (error) {
+      console.error('Failed to get next queue item:', error)
+      throw error
+    }
   }
 
   async updateStatus(id: string, status: QueueStatus) {
     try {
-      const supabase = createServerClient()
+      const supabase = createApiClient()
       const { error } = await supabase
         .from('queue')
         .update({ status })
@@ -46,7 +67,7 @@ export class QueueManager {
 
   async cleanupQueue(olderThan: Date) {
     try {
-      const supabase = createServerClient()
+      const supabase = createApiClient()
       const { error } = await supabase
         .from('queue')
         .delete()

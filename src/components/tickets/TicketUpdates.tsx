@@ -1,9 +1,14 @@
+'use client'
+
 import { useTicketUpdates } from '@/hooks/useTicketUpdates'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDistanceToNow } from 'date-fns'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { ACTIVITY_TYPES } from '@/lib/types/activities'
 
 export function TicketUpdates() {
-  const { updates, loading, error } = useTicketUpdates()
+  const { user } = useAuth()
+  const { activities, loading, error } = useTicketUpdates(user?.id || '')
 
   if (loading) {
     return (
@@ -26,7 +31,7 @@ export function TicketUpdates() {
     )
   }
 
-  if (updates.length === 0) {
+  if (!activities || activities.length === 0) {
     return (
       <div className="text-sm text-muted-foreground p-4">
         No recent updates
@@ -36,13 +41,13 @@ export function TicketUpdates() {
 
   return (
     <div className="space-y-4">
-      {updates.map((activity) => (
+      {activities.map((activity) => (
         <div key={activity.id} className="p-3 border rounded-lg">
           <p className="text-sm">
             <span className="font-medium">
-              {activity.activity_type === 'assignment' ? 'Assignment' :
-               activity.activity_type === 'status_change' ? 'Status Update' :
-               activity.activity_type === 'field_change' ? 'Field Update' :
+              {activity.activity_type === ACTIVITY_TYPES.ASSIGNMENT ? 'Assignment' :
+               activity.activity_type === ACTIVITY_TYPES.STATUS_CHANGE ? 'Status Update' :
+               activity.activity_type === ACTIVITY_TYPES.FIELD_CHANGE ? 'Field Update' :
                'Comment'}
             </span>
             {' '}on ticket #{activity.ticket_id.slice(0, 8)}

@@ -1,3 +1,5 @@
+'use client'
+
 import { Card, CardContent } from "@/components/ui/card"
 import { useTicketStatistics } from "@/hooks/useTicketStatistics"
 import { Skeleton } from "@/components/ui/skeleton"
