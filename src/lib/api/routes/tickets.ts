@@ -42,6 +42,12 @@ export interface TicketCounts {
 	group: number
 }
 
+export interface TicketStatistics {
+	good: number    // Tickets resolved within SLA
+	bad: number     // Tickets that violated SLA
+	solved: number  // Total tickets solved this week
+}
+
 export const getAll = async (): Promise<ApiResponse<Ticket[]>> => {
 	try {
 		const { data, error } = await supabase
@@ -182,6 +188,43 @@ export const getTicketActivities = async (ticketId: string): Promise<ApiResponse
 	}
 }
 
+export const getWeeklyStatistics = async (): Promise<ApiResponse<TicketStatistics>> => {
+	try {
+		const now = new Date()
+		const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
+		
+		// Get solved tickets this week
+		const { data: solvedData, error: solvedError } = await supabase
+			.from('tickets')
+			.select('*')
+			.eq('status', 'closed')
+			.gte('updated_at', startOfWeek.toISOString())
+
+		if (solvedError) throw solvedError
+
+		// Get tickets with SLA status
+		const { data: slaData, error: slaError } = await supabase
+			.from('tickets')
+			.select('*')
+			.eq('status', 'closed')
+			.gte('updated_at', startOfWeek.toISOString())
+			.not('metadata->sla_violated', 'is', null)
+
+		if (slaError) throw slaError
+
+		const goodTickets = slaData?.filter(ticket => !ticket.metadata?.sla_violated)?.length || 0
+		const badTickets = slaData?.filter(ticket => ticket.metadata?.sla_violated)?.length || 0
+
+		return createSuccessResponse({
+			good: goodTickets,
+			bad: badTickets,
+			solved: solvedData?.length || 0
+		})
+	} catch (err) {
+		return handleError(err, 'getWeeklyStatistics')
+	}
+}
+
 export const ticketService = {
 	getAll,
 	getById,
@@ -189,5 +232,6 @@ export const ticketService = {
 	update,
 	delete: deleteTicket,
 	getCounts,
-	getTicketActivities
+	getTicketActivities,
+	getWeeklyStatistics
 }

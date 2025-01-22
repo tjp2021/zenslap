@@ -8,6 +8,7 @@ import TicketList from '@/components/tickets/TicketList'
 import TicketListSkeleton from '@/components/tickets/TicketListSkeleton'
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { OpenTicketsCounter } from '@/components/tickets/OpenTicketsCounter'
+import { TicketStatistics } from '@/components/tickets/TicketStatistics'
 
 export default function TicketsPage() {
   return (
@@ -61,25 +62,7 @@ export default function TicketsPage() {
           {/* Statistics */}
           <div className="grid gap-6 md:grid-cols-2 mb-6">
             <OpenTicketsCounter />
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="text-sm font-medium mb-2">Ticket Statistics (this week)</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-                    <div className="text-2xl font-bold text-[#2d6847]">0</div>
-                    <div className="text-sm text-muted-foreground">GOOD</div>
-                  </div>
-                  <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-                    <div className="text-2xl font-bold text-[#2d6847]">0</div>
-                    <div className="text-sm text-muted-foreground">BAD</div>
-                  </div>
-                  <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-                    <div className="text-2xl font-bold text-[#2d6847]">0</div>
-                    <div className="text-sm text-muted-foreground">SOLVED</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <TicketStatistics />
           </div>
 
           <Suspense fallback={<TicketListSkeleton />}>
