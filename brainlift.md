@@ -292,3 +292,193 @@ export function ClientComponent({ id }) {
 - Accessing route params directly in client components
 - Fixing symptoms instead of causes
 - Ignoring framework architecture
+
+## Next.js 14 Dynamic Route Parameters Debug Analysis
+
+### Problem Analysis
+- Initial Error: `params.id` needed to be awaited before use
+- Error Location: Next.js 14 dynamic route parameter handling
+- Error Type: Runtime error in server component
+
+### Solution Attempts
+
+#### Attempt #1: Direct Access
+```typescript
+export default function TicketDetailsPage({ params }: PageProps) {
+  return <TicketDetailsClient id={params.id} />
+}
+```
+- Approach: Direct access to params.id
+- Failure: Didn't handle async nature of params
+- Learning: Next.js 14 route params are async
+
+#### Attempt #2: Await Property
+```typescript
+export default async function TicketDetailsPage({ params }: PageProps) {
+  const id = await params.id
+  return <TicketDetailsClient id={id} />
+}
+```
+- Approach: Awaiting individual property
+- Failure: Can't await properties directly
+- Learning: Need to await entire params object
+
+#### Attempt #3: Promise Resolution
+```typescript
+export default async function TicketDetailsPage({ params }: PageProps) {
+  const id = await Promise.resolve(params.id)
+  return <TicketDetailsClient id={id} />
+}
+```
+- Approach: Using Promise.resolve
+- Failure: Wrong approach to handling async params
+- Learning: Promise.resolve doesn't solve the underlying issue
+
+#### Final Working Solution
+```typescript
+interface PageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function TicketDetailsPage({ params }: PageProps) {
+  const resolvedParams = await params
+  return <TicketDetailsClient id={resolvedParams.id} />
+}
+```
+- Approach: Proper typing and awaiting of params
+- Success: Correctly handles async nature of params
+- Key Insight: Params is a Promise of an object, not an object with Promise properties
+
+### Key Learnings
+1. **Type System Importance**
+   - Correct typing (`Promise<{ id: string }>`) was crucial
+   - TypeScript helps enforce correct async handling
+
+2. **Next.js 14 Changes**
+   - Dynamic route parameters are now async by default
+   - Must await entire params object, not individual properties
+
+3. **Debugging Process**
+   - Started with simplest solution
+   - Each failure provided more insight
+   - Error messages pointed to correct solution
+
+4. **Best Practices**
+   - Always check framework version specifics
+   - Pay attention to type definitions
+   - Follow error message links for documentation
+
+### Anti-Patterns Identified
+1. Trying to await individual properties
+2. Using Promise.resolve as a workaround
+3. Ignoring TypeScript's role in catching async issues
+
+This case study shows the importance of:
+1. Understanding framework changes
+2. Reading error messages carefully
+3. Using proper TypeScript types
+4. Iterative debugging with learning from each attempt
+
+## React Context Provider Mounting Loop Analysis
+
+### Problem Analysis
+- Initial Symptom: Repeated "TicketsProvider mounted" logs
+- Root Cause: Dependency chain causing infinite re-renders
+- Error Pattern: Component → useEffect → loadData → state update → re-render → repeat
+
+### Solution Attempts
+
+#### Attempt #1: Basic Memoization
+```typescript
+const defaultClient = useMemo(() => createClientComponentClient<Database>(), [])
+const supabase = supabaseClient || defaultClient
+```
+- Approach: Memoize Supabase client creation
+- Failure Point: Intermediate variable still caused rerenders
+- Learning: Partial memoization can still lead to dependency chains
+
+#### Attempt #2: Direct Client Usage
+```typescript
+const supabase = supabaseClient || createClientComponentClient<Database>()
+```
+- Approach: Remove memoization, use direct client
+- Failure Point: New client on every render
+- Learning: Stateful clients need stable references
+
+#### Attempt #3: Single useMemo
+```typescript
+const supabase = useMemo(() => 
+  supabaseClient || createClientComponentClient<Database>(),
+  [supabaseClient]
+)
+```
+- Approach: Single, complete memoization
+- Success: Stable client reference
+- Learning: Minimize dependency chain points
+
+### Dependency Chain Analysis
+Before:
+```
+render → new defaultClient → new supabase → new loadTickets → useEffect trigger → render
+```
+
+After:
+```
+render → stable supabase → stable loadTickets → useEffect (only on user.id change)
+```
+
+### Key Optimizations
+1. **Supabase Client Stability**
+   - Single useMemo for client creation
+   - Only depends on passed client prop
+   - Eliminates unnecessary client recreation
+
+2. **Callback Optimization**
+   - Changed from `[user]` to `[user?.id]` dependency
+   - Prevents rerenders on non-id user changes
+   - More precise dependency tracking
+
+3. **Effect Cleanup**
+   - Removed console.log noise
+   - Cleaner dependency array
+   - More predictable execution
+
+### Best Practices Identified
+1. **Dependency Management**
+   - Use primitive values in deps arrays
+   - Minimize dependency chain length
+   - Break circular dependencies
+
+2. **Memoization Strategy**
+   - Single point of memoization
+   - Clear dependency boundaries
+   - Stable reference creation
+
+3. **State Updates**
+   - Batch related state updates
+   - Use functional updates
+   - Minimize cascading updates
+
+### Anti-Patterns Avoided
+1. **Dependency Chain**
+   - Multiple levels of derived values
+   - Circular update patterns
+   - Unnecessary state updates
+
+2. **Memoization**
+   - Partial/incomplete memoization
+   - Over-memoization
+   - Wrong dependency arrays
+
+3. **Effect Handling**
+   - Too broad effect scope
+   - Unnecessary effect triggers
+   - Missing cleanup
+
+### Core Lessons
+1. React's rendering mental model is crucial
+2. Dependency chains need careful management
+3. Memoization is about stability, not just performance
+4. Effects should have clear, minimal dependencies
+
+This case study demonstrates how seemingly simple React patterns can create complex dependency chains, and how methodical debugging and optimization can resolve them.

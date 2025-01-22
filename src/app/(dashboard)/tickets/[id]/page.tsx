@@ -1,17 +1,21 @@
 import { Suspense } from 'react'
-import { TicketDetailsClient } from './TicketDetailsClient'
+import TicketDetailsClient from './TicketDetailsClient'
+import { notFound } from 'next/navigation'
 
 interface PageProps {
   params: Promise<{ id: string }>
 }
 
 export default async function TicketDetailsPage({ params }: PageProps) {
-  // Await params since it's Promise-based in Next.js 14
-  const { id } = await params
+  const resolvedParams = await params
   
+  if (!resolvedParams.id) {
+    notFound()
+  }
+
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <TicketDetailsClient id={id} />
+      <TicketDetailsClient id={resolvedParams.id} />
     </Suspense>
   )
 } 

@@ -9,19 +9,21 @@ import { ArrowLeft } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { TicketActivity } from '@/lib/types/activities'
+import { useAuth } from '@/hooks/useAuth'
 
 interface TicketDetailsClientProps {
   id: string
 }
 
-export function TicketDetailsClient({ id }: TicketDetailsClientProps) {
+export default function TicketDetailsClient({ id }: TicketDetailsClientProps) {
   const router = useRouter()
+  const { user } = useAuth()
   const { ticket, isLoading: ticketLoading } = useTicket(id)
   const { activities, isLoading: activitiesLoading, addActivity, deleteActivity } = useTicketActivities(id)
   
-  if (ticketLoading || activitiesLoading) {
+  if (!user || (ticketLoading && activitiesLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center h-96">
         <LoadingSpinner />
       </div>
     )
@@ -29,18 +31,8 @@ export function TicketDetailsClient({ id }: TicketDetailsClientProps) {
 
   if (!ticket) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold text-gray-900">Ticket not found</h2>
-          <p className="mt-2 text-gray-600">The ticket you're looking for doesn't exist or you don't have access.</p>
-          <Button
-            className="mt-4"
-            onClick={() => router.push('/tickets')}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Tickets
-          </Button>
-        </div>
+      <div className="flex items-center justify-center h-96">
+        <p className="text-gray-500">Ticket not found</p>
       </div>
     )
   }
@@ -74,8 +66,8 @@ export function TicketDetailsClient({ id }: TicketDetailsClientProps) {
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">Activities</h2>
                   <Activities 
-                    ticketId={id}
-                    activities={activities as TicketActivity[]}
+                    ticketId={id} 
+                    activities={activities as TicketActivity[]} 
                     onAddActivity={addActivity}
                     onDeleteActivity={deleteActivity}
                   />

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import useSWR from 'swr'
-import { TicketActivity, CreateActivityDTO } from '@/lib/types'
+import { TicketActivity, CreateActivityDTO, Actor, ActivityType, CommentContent } from '@/lib/types/activities'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -40,7 +40,11 @@ export function useTicketActivities(ticketId: string) {
       // Combine the data
       return activities?.map(activity => ({
         ...activity,
-        actor: actors?.find(actor => actor.id === activity.actor_id)
+        actor: actors?.find(actor => actor.id === activity.actor_id) || {
+          id: activity.actor_id,
+          email: 'unknown',
+          role: 'unknown'
+        }
       })) || []
     },
     {
@@ -49,37 +53,34 @@ export function useTicketActivities(ticketId: string) {
     }
   )
 
-  const addActivity = async (content: string, isInternal: boolean) => {
+  const addActivity = async (content: string, isInternal: boolean = false) => {
     if (!user) {
       toast({
         title: 'Error',
         description: 'You must be logged in to add comments',
-        variant: 'destructive',
       })
       return
     }
 
-    try {
-      const newActivity = {
-        ticket_id: ticketId,
-        actor_id: user.id,
-        activity_type: 'comment' as const,
-        content: {
-          message: content,
-          is_internal: isInternal,
-        },
-      }
+    const newActivity: CreateActivityDTO = {
+      ticket_id: ticketId,
+      activity_type: 'comment' as ActivityType,
+      content: {
+        text: content,
+        is_internal: isInternal,
+      } as CommentContent,
+    }
 
-      // First insert the activity
-      const { data: activity, error: insertError } = await supabase
+    try {
+      const { data: activity, error } = await supabase
         .from('ticket_activities')
-        .insert([newActivity])
+        .insert(newActivity)
         .select()
         .single()
 
-      if (insertError) throw insertError
+      if (error) throw error
 
-      // Then get the actor data
+      // Get the actor data
       const { data: actor, error: actorError } = await supabase
         .from('users_secure')
         .select('id, email, role')
@@ -88,14 +89,18 @@ export function useTicketActivities(ticketId: string) {
 
       if (actorError) throw actorError
 
-      // Combine the data
-      const fullActivity = {
+      // Optimistically update the UI
+      const fullActivity: TicketActivity = {
         ...activity,
-        actor,
-        content: newActivity.content
+        actor: actor || {
+          id: user.id,
+          email: 'unknown',
+          role: 'unknown'
+        }
       }
-      
-      await mutate([fullActivity, ...activities], false)
+
+      await mutate(prev => [fullActivity, ...(prev || [])])
+
       toast({
         title: 'Success',
         description: 'Comment added successfully',
@@ -105,9 +110,7 @@ export function useTicketActivities(ticketId: string) {
       toast({
         title: 'Error',
         description: 'Failed to add comment',
-        variant: 'destructive',
       })
-      throw error
     }
   }
 
@@ -116,7 +119,6 @@ export function useTicketActivities(ticketId: string) {
       toast({
         title: 'Error',
         description: 'You must be logged in to delete comments',
-        variant: 'destructive',
       })
       return
     }
@@ -128,30 +130,27 @@ export function useTicketActivities(ticketId: string) {
         .eq('id', activityId)
 
       if (error) throw error
-      
-      await mutate(
-        activities.filter((activity) => activity.id !== activityId),
-        false
-      )
+
+      // Optimistically update the UI
+      await mutate(prev => prev?.filter(a => a.id !== activityId))
+
       toast({
         title: 'Success',
-        description: 'Activity deleted successfully',
+        description: 'Comment deleted successfully',
       })
     } catch (error) {
       console.error('Error deleting activity:', error)
       toast({
         title: 'Error',
-        description: 'Failed to delete activity',
-        variant: 'destructive',
+        description: 'Failed to delete comment',
       })
-      throw error
     }
   }
 
   return {
     activities,
-    error,
     isLoading,
+    error,
     addActivity,
     deleteActivity,
   }

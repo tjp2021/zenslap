@@ -79,17 +79,73 @@ function TicketsProviderContent({
   children: ReactNode
   supabaseClient?: SupabaseClient
 }) {
-  console.log('TicketsProvider mounted') // Debug log
-  
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [users, setUsers] = useState<{ id: string; email: string }[]>([])
   const [operations, setOperations] = useState<OperationState[]>([])
   const [filters, setFilters] = useState<TicketFilters>(defaultFilters)
   const [sort, setSort] = useState<SortConfig>(defaultSort)
-  const defaultClient = createClientComponentClient<Database>()
-  const supabase = supabaseClient || defaultClient
   const [loading, setLoading] = useState(false)
   const { user } = useAuth()
+
+  // Create a stable supabase client
+  const supabase = useMemo(() => 
+    supabaseClient || createClientComponentClient<Database>(),
+    [supabaseClient]
+  )
+
+  // Memoize loadTickets to prevent recreation
+  const loadTickets = useCallback(async () => {
+    if (!user) {
+      setTickets([])
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        throw new Error(`Failed to load tickets: ${error.message}`)
+      }
+
+      setTickets(data || [])
+    } catch (err) {
+      console.error('Error loading tickets:', err)
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [supabase, user?.id]) // Only depend on user.id, not the entire user object
+
+  // Memoize loadUsers to prevent recreation
+  const loadUsers = useCallback(async () => {
+    if (!user) {
+      setUsers([])
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('users_secure')
+        .select('*')
+      
+      if (error) throw error
+      setUsers(data || [])
+    } catch (err) {
+      console.error('Error loading users:', err)
+    }
+  }, [supabase, user?.id]) // Only depend on user.id
+
+  // Load data when user changes
+  useEffect(() => {
+    if (user?.id) {
+      loadTickets()
+      loadUsers()
+    }
+  }, [user?.id, loadTickets, loadUsers]) // Only depend on user.id
 
   // Memoized filtered and sorted tickets
   const filteredAndSortedTickets = useMemo(() => {
@@ -203,62 +259,6 @@ function TicketsProviderContent({
   const getOperationState = (type: OperationType, id?: string) => {
     return operations.find(op => op.type === type && (id ? op.id === id : true))
   }
-
-  const loadTickets = useCallback(async () => {
-    if (!user) {
-      console.log('No authenticated user found')
-      setTickets([])
-      return
-    }
-
-    setLoading(true)
-    try {
-      console.log('Fetching tickets with user:', user.id)
-      const { data, error } = await supabase
-        .from('tickets')
-        .select('*')
-        .order('created_at', { ascending: false })
-      
-      if (error) {
-        console.error('Database error:', error)
-        throw new Error(`Failed to load tickets: ${error.message}`)
-      }
-
-      console.log('Fetched tickets:', data?.length || 0)
-      setTickets(data || [])
-    } catch (err) {
-      console.error('Error loading tickets:', err)
-      throw err // Let error boundary handle it
-    } finally {
-      setLoading(false)
-    }
-  }, [supabase, user])
-
-  const loadUsers = useCallback(async () => {
-    if (!user) {
-      console.log('No authenticated user found')
-      setUsers([])
-      return
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('users_secure')
-        .select('*')
-      
-      if (error) throw error
-      setUsers(data || [])
-    } catch (err) {
-      console.error('Error loading users:', err)
-    }
-  }, [supabase, user])
-
-  useEffect(() => {
-    if (user) {
-      loadTickets()
-      loadUsers()
-    }
-  }, [loadTickets, loadUsers, user])
 
   async function createTicket(data: CreateTicketDTO) {
     try {

@@ -34,8 +34,8 @@ export interface AssignmentContent {
 // Actor type
 export interface Actor {
   id: string
-  display_name: string | null
   email: string
+  role: string
 }
 
 // Main ticket activity interface
@@ -47,4 +47,11 @@ export interface TicketActivity {
   activity_type: ActivityType
   content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
   created_at: string
+}
+
+// DTO for creating a new activity
+export interface CreateActivityDTO {
+  ticket_id: string
+  activity_type: ActivityType
+  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
 } 
