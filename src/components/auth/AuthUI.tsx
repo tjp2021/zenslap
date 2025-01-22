@@ -16,7 +16,7 @@ export default function AuthUI() {
       theme="dark"
       showLinks={false}
       providers={[]}
-      redirectTo="/auth/callback"
+      redirectTo={`${window.location.origin}/auth/callback`}
     />
   )
 } 
