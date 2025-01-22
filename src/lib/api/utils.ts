@@ -1,26 +1,61 @@
-import { NextApiRequest, NextApiResponse } from 'next'
-import { supabase } from '@/lib/supabase/client'
-import type { TicketBase, TicketResponse, TicketsResponse } from '../types'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createApiClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import type { Database } from '@/types/supabase'
 
-type ApiHandler = (
-	req: NextApiRequest,
-	res: NextApiResponse,
-	supabase: SupabaseClient
-) => Promise<void>
+type Ticket = Database['public']['Tables']['tickets']['Row']
 
 /**
- * Creates a route handler with error handling and Supabase client injection
+ * Creates a route handler for API endpoints
+ * Handles authentication and error responses
  */
-export const createHandler = (handler: ApiHandler) => {
-	return async (req: NextApiRequest, res: NextApiResponse) => {
-		try {
-			await handler(req, res, supabase)
-		} catch (error) {
-			console.error('API Error:', error)
-			res.status(500).json({ error: 'Internal server error' })
+export async function createHandler<T>(
+	req: NextRequest,
+	handler: () => Promise<T>
+) {
+	try {
+		const supabase = createApiClient()
+		const { data: { session } } = await supabase.auth.getSession()
+
+		if (!session) {
+			return NextResponse.json(
+				{ error: 'Unauthorized' },
+				{ status: 401 }
+			)
 		}
+
+		const result = await handler()
+		return NextResponse.json(result)
+	} catch (error) {
+		console.error('API error:', error)
+		return NextResponse.json(
+			{ error: 'Internal server error' },
+			{ status: 500 }
+		)
 	}
+}
+
+// Database table names as constants
+export const TABLES = {
+	TICKETS: 'tickets',
+	USERS: 'users',
+	QUEUE: 'queue',
+	QUICK_RESPONSES: 'quick_responses',
+	RESPONSE_CATEGORIES: 'response_categories'
+} as const
+
+// Type guard for Ticket
+export function isTicket(value: unknown): value is Ticket {
+	if (!value || typeof value !== 'object') return false
+	
+	const ticket = value as Partial<Ticket>
+	return (
+		typeof ticket.id === 'string' &&
+		typeof ticket.title === 'string' &&
+		typeof ticket.description === 'string' &&
+		typeof ticket.status === 'string' &&
+		typeof ticket.priority === 'string'
+	)
 }
 
 // Generic error handler
@@ -33,46 +68,4 @@ export const handleError = (error: unknown): string => {
 export const wrapResponse = <T>(data: T | null, error: string | null): { data: T | null; error: string | null } => ({
 	data,
 	error
-})
-
-// Database table names
-export const TABLES = {
-	TICKETS: 'tickets'
-} as const
-
-// Type guard for TicketBase
-export const isTicketBase = (ticket: unknown): ticket is TicketBase => {
-	return (
-		typeof ticket === 'object' &&
-		ticket !== null &&
-		'id' in ticket &&
-		'title' in ticket &&
-		'description' in ticket &&
-		'status' in ticket &&
-		'priority' in ticket
-	)
-}
-
-// Response type guards
-export const isTicketResponse = (response: unknown): response is TicketResponse => {
-	return (
-		typeof response === 'object' &&
-		response !== null &&
-		'data' in response &&
-		'error' in response &&
-		(response.data === null || isTicketBase(response.data)) &&
-		(response.error === null || typeof response.error === 'string')
-	)
-}
-
-export const isTicketsResponse = (response: unknown): response is TicketsResponse => {
-	return (
-		typeof response === 'object' &&
-		response !== null &&
-		'data' in response &&
-		'error' in response &&
-		Array.isArray(response.data) &&
-		response.data.every(isTicketBase) &&
-		(response.error === null || typeof response.error === 'string')
-	)
-} 
+}) 

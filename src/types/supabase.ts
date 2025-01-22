@@ -58,6 +58,72 @@ export interface Database {
           user_id?: string
         }
       }
+      queue: {
+        Row: {
+          id: string
+          created_at: string
+          status: 'pending' | 'processing' | 'completed' | 'failed'
+          type: string
+          payload: Json
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          type: string
+          payload: Json
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          type?: string
+          payload?: Json
+        }
+      }
+      quick_responses: {
+        Row: {
+          id: string
+          title: string
+          content: string
+          created_at: string
+          updated_at: string
+          category_id?: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          content: string
+          created_at?: string
+          updated_at?: string
+          category_id?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+          category_id?: string
+        }
+      }
+      response_categories: {
+        Row: {
+          id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SLAIndicator } from './SLAIndicator'
-import { useTicketList, useTicketMutations, useUsers } from '@/hooks/useTicketData'
+import { useTicketMutations, useUsers } from '@/hooks/useTicketData'
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Pagination,
@@ -33,9 +33,10 @@ interface SortableColumnProps {
   field: 'created_at' | 'updated_at' | 'priority' | 'status' | 'title'
   children: React.ReactNode
   className?: string
+  onClick?: (direction: 'asc' | 'desc') => void
 }
 
-function SortableColumn({ field, children, className }: SortableColumnProps) {
+function SortableColumn({ field, children, className, onClick }: SortableColumnProps) {
   const { sort, setSort: setSortContext } = useTickets()
   const isActive = sort.field === field
   
@@ -53,7 +54,12 @@ function SortableColumn({ field, children, className }: SortableColumnProps) {
     <TableHead className={className}>
       <button
         className="flex items-center gap-1 hover:text-foreground/80"
-        onClick={handleClick}
+        onClick={() => {
+          handleClick()
+          if (onClick) {
+            onClick(sort.direction)
+          }
+        }}
       >
         {children}
         <span className="ml-1">
@@ -75,12 +81,14 @@ function SortableColumn({ field, children, className }: SortableColumnProps) {
 export default function TicketList() {
   const [currentPage, setCurrentPage] = useState(1)
   const { 
-    tickets, 
-    isLoading,
-    totalCount,
-    totalPages,
-    pageSize 
-  } = useTicketList(currentPage)
+    tickets,
+    loading,
+    loadTickets,
+    setStatusFilter,
+    setPriorityFilter,
+    setSearchFilter,
+    setSort,
+  } = useTickets()
   const { users } = useUsers()
   const { 
     bulkUpdateTickets, 
@@ -90,241 +98,171 @@ export default function TicketList() {
     bulkError,
     assignError
   } = useTicketMutations()
-  const [localSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
-    field: 'created_at',
-    direction: 'desc'
-  })
-  const [statusFilter, setStatusFilter] = useState<string[]>([])
-  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
   const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set())
 
-  // Filter and sort tickets
-  const filteredTickets = useMemo(() => {
-    let result = [...tickets]
+  const pageSize = 20 // Match the previous PAGE_SIZE
+  const totalCount = tickets.length
+  const totalPages = Math.ceil(totalCount / pageSize)
 
-    // Apply status filter
-    if (statusFilter.length > 0) {
-      result = result.filter(ticket => statusFilter.includes(ticket.status))
-    }
-
-    // Apply priority filter
-    if (priorityFilter.length > 0) {
-      result = result.filter(ticket => priorityFilter.includes(ticket.priority))
-    }
-
-    // Apply search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase()
-      result = result.filter(ticket => 
-        ticket.title.toLowerCase().includes(search) ||
-        ticket.description?.toLowerCase().includes(search)
-      )
-    }
-
-    // Apply sorting
-    result.sort((a, b) => {
-      const aValue = a[localSort.field as keyof typeof a]
-      const bValue = b[localSort.field as keyof typeof b]
-      
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return localSort.direction === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue)
-      }
-      
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return localSort.direction === 'asc' 
-          ? aValue - bValue
-          : bValue - aValue
-      }
-
-      if (aValue instanceof Date && bValue instanceof Date) {
-        return localSort.direction === 'asc'
-          ? aValue.getTime() - bValue.getTime()
-          : bValue.getTime() - aValue.getTime()
-      }
-
-      return 0
-    })
-
-    return result
-  }, [tickets, statusFilter, priorityFilter, searchTerm, localSort])
+  // Get current page of tickets
+  const currentTickets = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    const end = start + pageSize
+    return tickets.slice(start, end)
+  }, [tickets, currentPage, pageSize])
 
   // Bulk selection handlers
-  const handleSelectAll = () => {
-    if (selectedTickets.size === filteredTickets.length) {
+  const handleSelectAll = useCallback(() => {
+    if (selectedTickets.size === currentTickets.length) {
       setSelectedTickets(new Set())
     } else {
-      setSelectedTickets(new Set(filteredTickets.map(t => t.id)))
+      setSelectedTickets(new Set(currentTickets.map(t => t.id)))
     }
-  }
+  }, [currentTickets, selectedTickets.size])
 
-  const handleSelectTicket = (id: string) => {
-    const newSelected = new Set(selectedTickets)
-    if (newSelected.has(id)) {
-      newSelected.delete(id)
-    } else {
-      newSelected.add(id)
-    }
-    setSelectedTickets(newSelected)
-  }
+  const handleSelectTicket = useCallback((ticketId: string) => {
+    setSelectedTickets(prev => {
+      const next = new Set(prev)
+      if (next.has(ticketId)) {
+        next.delete(ticketId)
+      } else {
+        next.add(ticketId)
+      }
+      return next
+    })
+  }, [])
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page)
+  }, [])
 
   // Bulk update handler
-  const handleBulkStatusUpdate = async (newStatus: typeof TICKET_STATUSES[number]) => {
+  const handleBulkStatusUpdate = useCallback(async (newStatus: typeof TICKET_STATUSES[number]) => {
     const result = await bulkUpdateTickets(Array.from(selectedTickets), { status: newStatus })
     if (!result.error) {
       setSelectedTickets(new Set())
     }
-  }
+  }, [bulkUpdateTickets, selectedTickets])
 
   // Assign handler
-  const handleAssign = async (assignee: string | null) => {
+  const handleAssign = useCallback(async (assignee: string | null) => {
     const result = await assignTickets(Array.from(selectedTickets), assignee)
     if (!result.error) {
       setSelectedTickets(new Set())
     }
-  }
+  }, [assignTickets, selectedTickets])
 
-  const clearFilters = useCallback(() => {
-    setStatusFilter([])
-    setPriorityFilter([])
-    setSearchTerm('')
-  }, [])
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-    // Scroll to top of list
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  if (isLoading) {
+  if (loading) {
     return <div>Loading tickets...</div>
   }
 
   return (
     <Card>
-      <CardContent className="p-0">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold">
-              Tickets requiring your attention ({filteredTickets.length})
-            </h3>
-            {selectedTickets.size > 0 && (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {selectedTickets.size} selected
-                  </span>
-                  {TICKET_STATUSES.map(status => (
-                    <Button
-                      key={status}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleBulkStatusUpdate(status)}
-                      disabled={isBulkUpdating}
-                    >
-                      {isBulkUpdating ? 'Updating...' : `Set ${status}`}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2 border-l pl-4">
-                  <Select
-                    onValueChange={(value) => handleAssign(value === 'unassign' ? null : value)}
-                    disabled={isAssigning}
+      <CardContent className="p-6">
+        {/* Bulk Actions */}
+        {selectedTickets.size > 0 && (
+          <div className="mb-4 p-4 border rounded-lg bg-muted/50">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {selectedTickets.size} selected
+              </span>
+              <div className="flex items-center gap-2">
+                {TICKET_STATUSES.map(status => (
+                  <Button
+                    key={status}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkStatusUpdate(status)}
+                    disabled={isBulkUpdating}
                   >
-                    <SelectTrigger className="w-[180px]">
-                      <div className="flex items-center gap-2">
-                        <UserPlus className="h-4 w-4" />
-                        <SelectValue placeholder={isAssigning ? "Assigning..." : "Assign to..."} />
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map(user => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.email}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="unassign" className="border-t mt-2">
-                        Unassign
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {isBulkUpdating ? 'Updating...' : `Set ${status}`}
+                  </Button>
+                ))}
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <Input
-              placeholder="Search tickets..."
-              className="w-64"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Button variant="outline" size="sm" onClick={clearFilters}>
-              Clear Filters
-            </Button>
-          </div>
-        </div>
 
+              <div className="flex items-center gap-2 border-l pl-4">
+                <Select
+                  onValueChange={(value) => handleAssign(value === 'unassign' ? null : value)}
+                  disabled={isAssigning}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="h-4 w-4" />
+                      <SelectValue placeholder={isAssigning ? "Assigning..." : "Assign to..."} />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map(user => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.email}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="unassign" className="border-t mt-2">
+                      Unassign
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Messages */}
         {bulkError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{bulkError}</AlertDescription>
           </Alert>
         )}
         
         {assignError && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{assignError}</AlertDescription>
           </Alert>
         )}
 
-        {/* Filter Controls */}
-        <div className="px-4 pb-4 flex gap-4">
-          <div className="space-y-2">
-            <div className="font-medium text-sm">Status</div>
-            <div className="flex gap-2">
-              {TICKET_STATUSES.map(status => (
-                <Badge
-                  key={status}
-                  variant={statusFilter.includes(status) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    if (statusFilter.includes(status)) {
-                      setStatusFilter(statusFilter.filter(s => s !== status))
-                    } else {
-                      setStatusFilter([...statusFilter, status])
-                    }
-                  }}
-                >
-                  {status}
-                </Badge>
-              ))}
-            </div>
-          </div>
+        {/* Filters */}
+        <div className="space-y-4 mb-4">
+          {/* Search */}
+          <Input
+            placeholder="Search tickets..."
+            className="max-w-sm"
+            onChange={(e) => setSearchFilter(e.target.value)}
+          />
 
-          <div className="space-y-2">
-            <div className="font-medium text-sm">Priority</div>
-            <div className="flex gap-2">
-              {TICKET_PRIORITIES.map(priority => (
-                <Badge
-                  key={priority}
-                  variant={priorityFilter.includes(priority) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    if (priorityFilter.includes(priority)) {
-                      setPriorityFilter(priorityFilter.filter(p => p !== priority))
-                    } else {
-                      setPriorityFilter([...priorityFilter, priority])
-                    }
-                  }}
-                >
-                  {priority}
-                </Badge>
-              ))}
+          {/* Filter badges */}
+          <div className="flex gap-4">
+            <div>
+              <div className="text-sm font-medium mb-2">Status</div>
+              <div className="flex gap-2">
+                {TICKET_STATUSES.map(status => (
+                  <Badge
+                    key={status}
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => setStatusFilter([status])}
+                  >
+                    {status}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-medium mb-2">Priority</div>
+              <div className="flex gap-2">
+                {TICKET_PRIORITIES.map(priority => (
+                  <Badge
+                    key={priority}
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => setPriorityFilter([priority])}
+                  >
+                    {priority}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -336,21 +274,21 @@ export default function TicketList() {
                 <input 
                   type="checkbox" 
                   className="rounded border-gray-300"
-                  checked={selectedTickets.size === filteredTickets.length}
+                  checked={selectedTickets.size === currentTickets.length}
                   onChange={handleSelectAll}
                 />
               </TableHead>
-              <SortableColumn field="title">Title</SortableColumn>
-              <SortableColumn field="status">Status</SortableColumn>
-              <SortableColumn field="priority">Priority</SortableColumn>
+              <SortableColumn field="title" onClick={(direction) => setSort('title', direction)}>Title</SortableColumn>
+              <SortableColumn field="status" onClick={(direction) => setSort('status', direction)}>Status</SortableColumn>
+              <SortableColumn field="priority" onClick={(direction) => setSort('priority', direction)}>Priority</SortableColumn>
               <TableHead>SLA</TableHead>
-              <SortableColumn field="created_at">Created</SortableColumn>
-              <SortableColumn field="updated_at">Updated</SortableColumn>
+              <SortableColumn field="created_at" onClick={(direction) => setSort('created_at', direction)}>Created</SortableColumn>
+              <SortableColumn field="updated_at" onClick={(direction) => setSort('updated_at', direction)}>Updated</SortableColumn>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTickets.map((ticket) => (
+            {currentTickets.map((ticket) => (
               <TableRow key={ticket.id}>
                 <TableCell>
                   <input 

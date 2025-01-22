@@ -1,42 +1,36 @@
-import { createClient } from '@supabase/supabase-js'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import type { Database } from '@/types/supabase'
 
-const serviceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNob2hlYWZucGptdXFzaXdzdHBwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNzQwMjI5NywiZXhwIjoyMDUyOTc4Mjk3fQ.Wd_hPZ5oYxhYZPHzAFQnEF7uNz4LQB7PCiDRvb0Wnp4'
-
-const supabase = createClient(
-  'https://shoheafnpjmuqsiwstpp.supabase.co',
-  serviceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
-
-async function deleteAllUsers() {
+async function deleteUsers() {
+  const supabase = createRouteHandlerClient<Database>({ cookies })
+  
   try {
-    // First delete all profiles
-    const { error: profilesError } = await supabase
-      .from('profiles')
-      .delete()
-      .neq('id', 'dummy') // Delete all rows
+    // Get all users to delete
+    const { data: users, error: fetchError } = await supabase
+      .from('users_secure')
+      .select('id')
+      .eq('status', 'pending_deletion')
 
-    if (profilesError) throw profilesError
+    if (fetchError) throw fetchError
 
-    // Then delete all users
-    const { data: users, error: usersError } = await supabase.auth.admin.listUsers()
-    if (usersError) throw usersError
+    // Delete users in batches
+    const batchSize = 10
+    for (let i = 0; i < users.length; i += batchSize) {
+      const batch = users.slice(i, i + batchSize)
+      const { error: deleteError } = await supabase
+        .from('users_secure')
+        .delete()
+        .in('id', batch.map(u => u.id))
 
-    for (const user of users.users) {
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id)
       if (deleteError) throw deleteError
-      console.log(`Deleted user: ${user.email}`)
+      console.log(`Deleted batch ${i / batchSize + 1}`)
     }
 
-    console.log('Successfully deleted all users')
+    console.log('Successfully deleted all pending users')
   } catch (error) {
     console.error('Error deleting users:', error)
   }
 }
 
-deleteAllUsers() 
+deleteUsers() 

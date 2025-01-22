@@ -1,5 +1,6 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AnalyticsEvent, AnalyticsEventType } from '@/lib/types/integrations'
+import type { Database } from '@/types/supabase'
 
 interface AnalyticsConfig {
   provider: string
@@ -9,20 +10,21 @@ interface AnalyticsConfig {
 
 export class AnalyticsService {
   private static instance: AnalyticsService
-  private supabase = createClientComponentClient()
   private eventQueue: AnalyticsEvent[] = []
   private isProcessing = false
   private batchSize = 10
   private flushInterval = 5000 // 5 seconds
 
-  private constructor() {
+  private constructor(
+    private readonly supabase: SupabaseClient<Database>
+  ) {
     // Set up periodic flush
     setInterval(() => this.flush(), this.flushInterval)
   }
 
-  public static getInstance(): AnalyticsService {
+  public static getInstance(supabase: SupabaseClient<Database>): AnalyticsService {
     if (!AnalyticsService.instance) {
-      AnalyticsService.instance = new AnalyticsService()
+      AnalyticsService.instance = new AnalyticsService(supabase)
     }
     return AnalyticsService.instance
   }

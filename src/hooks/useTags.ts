@@ -1,117 +1,49 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { tags } from '@/lib/api/routes/tags'
-import getSupabaseClient from '@/lib/supabase/client'
+'use client'
 
-interface UseTagsOptions {
-    ticketId?: string
-    onError?: (error: Error) => void
-    enabled?: boolean
-}
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
+import useSWR from 'swr'
 
-export function useTags({ ticketId, onError, enabled = true }: UseTagsOptions = {}) {
-    const queryClient = useQueryClient()
-    const supabase = getSupabaseClient()
+export function useTags() {
+  const supabase = createClientComponentClient<Database>()
 
-    // Fetch all tags
-    const { data: allTags, isLoading: isLoadingAll } = useQuery({
-        queryKey: ['tags'],
-        queryFn: async () => {
-            const { data: tags, error } = await supabase
-                .from('tags')
-                .select('*')
+  const { data: tags, error, mutate } = useSWR('tags', async () => {
+    const { data, error } = await supabase
+      .from('tags')
+      .select('*')
+      .order('name', { ascending: true })
 
-            if (error) throw error
-            return tags
-        },
-        enabled
-    })
+    if (error) throw error
+    return data || []
+  })
 
-    // Fetch ticket-specific tags
-    const { data: ticketTags, isLoading: isLoadingTicket } = useQuery({
-        queryKey: ['tags', ticketId],
-        queryFn: async () => {
-            if (!ticketId) return []
-            const result = await tags.getByTicketId(ticketId)
-            if (result.error) throw result.error
-            return result.data || []
-        },
-        enabled: !!ticketId
-    })
+  const addTag = async (name: string) => {
+    const { data, error } = await supabase
+      .from('tags')
+      .insert([{ name }])
+      .select()
+      .single()
 
-    // Create tag mutation
-    const createTag = useMutation({
-        mutationFn: async (data: { name: string; color: string }) => {
-            const result = await tags.create(data)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tags'] })
-        },
-        onError
-    })
+    if (error) throw error
+    await mutate()
+    return data
+  }
 
-    // Delete tag mutation
-    const deleteTag = useMutation({
-        mutationFn: async (id: string) => {
-            const result = await tags.delete(id)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tags'] })
-        },
-        onError
-    })
+  const removeTag = async (id: string) => {
+    const { error } = await supabase
+      .from('tags')
+      .delete()
+      .eq('id', id)
 
-    // Associate tag with ticket mutation
-    const associateTag = useMutation({
-        mutationFn: async ({ ticketId, tagId }: { ticketId: string; tagId: string }) => {
-            // Using update method to associate tag with ticket
-            const result = await tags.update(tagId, {
-                ticket_ids: [ticketId]
-            })
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tags', ticketId] })
-        },
-        onError
-    })
+    if (error) throw error
+    await mutate()
+  }
 
-    // Dissociate tag from ticket mutation
-    const dissociateTag = useMutation({
-        mutationFn: async ({ ticketId, tagId }: { ticketId: string; tagId: string }) => {
-            // Using update method to remove tag from ticket
-            const result = await tags.update(tagId, {
-                ticket_ids: []  // Remove the ticket ID
-            })
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tags', ticketId] })
-        },
-        onError
-    })
-
-    return {
-        // Data
-        allTags,
-        ticketTags,
-        
-        // Loading states
-        isLoading: isLoadingAll || isLoadingTicket,
-        isCreating: createTag.isPending,
-        isDeleting: deleteTag.isPending,
-        isAssociating: associateTag.isPending,
-        isDissociating: dissociateTag.isPending,
-
-        // Actions
-        createTag: createTag.mutateAsync,
-        deleteTag: deleteTag.mutateAsync,
-        associateTag: associateTag.mutateAsync,
-        dissociateTag: dissociateTag.mutateAsync
-    }
+  return {
+    tags: tags || [],
+    isLoading: !tags && !error,
+    error,
+    addTag,
+    removeTag
+  }
 } 

@@ -358,6 +358,57 @@
           ]
         }
       }
+    },
+    "run PDA": {
+      "pattern": "^run\\s+PDA$",
+      "action": "analyze",
+      "template": {
+        "sections": [
+          {
+            "title": "Design Pattern Analysis",
+            "analysis": "Identify applicable design patterns",
+            "format": [
+              "### Current Patterns",
+              "- Pattern: ${patternName}",
+              "  - Usage: ${currentImplementation}",
+              "  - Effectiveness: ${rating}",
+              "",
+              "### Recommended Patterns",
+              "- Pattern: ${suggestedPattern}",
+              "  - Problem Solved: ${problem}",
+              "  - Implementation Guide: ${guide}",
+              "  - Benefits: ${benefits}"
+            ]
+          },
+          {
+            "title": "Anti-Pattern Detection",
+            "analysis": "Identify and resolve anti-patterns",
+            "format": [
+              "### Detected Anti-Patterns",
+              "- Anti-Pattern: ${name}",
+              "  - Location: ${location}",
+              "  - Risk Level: ${severity}",
+              "  - Recommended Fix: ${solution}"
+            ]
+          },
+          {
+            "title": "Best Practices Compliance",
+            "analysis": "Evaluate adherence to best practices",
+            "format": [
+              "### Framework-Specific",
+              "- Practice: ${practice}",
+              "  - Status: ${status}",
+              "  - Improvement: ${suggestion}",
+              "",
+              "### General Development",
+              "- Area: ${area}",
+              "  - Current: ${current}",
+              "  - Target: ${target}",
+              "  - Action Items: ${actions}"
+            ]
+          }
+        ]
+      }
     }
   }
 } 

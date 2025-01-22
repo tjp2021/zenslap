@@ -3,18 +3,10 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Ticket } from '@/lib/types'
 import { useState } from 'react'
 import { ticketService } from '@/lib/api/routes/tickets'
-import type { TicketActivity } from '@/lib/api/routes/tickets'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 // Initialize with proper options
-const supabase = createClientComponentClient({
-  options: {
-    global: {
-      headers: {
-        'X-Client-Info': '@supabase/auth-helpers-nextjs'
-      }
-    }
-  }
-})
+const supabase = createClientComponentClient()
 
 const PAGE_SIZE = 20
 
@@ -35,13 +27,40 @@ const fetchTickets = async ({ page = 1, pageSize = PAGE_SIZE }) => {
   const start = (page - 1) * pageSize
   const end = start + pageSize - 1
 
+  // Debug: Check session
+  const { data: { session } } = await supabase.auth.getSession()
+  console.log('Current session:', session?.user?.id)
+
   const { data, error, count } = await supabase
     .from('tickets')
-    .select('*', { count: 'exact' })
+    .select(`
+      id,
+      title,
+      description,
+      status,
+      priority,
+      created_at,
+      updated_at,
+      created_by,
+      assignee,
+      metadata
+    `, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(start, end)
 
-  if (error) throw error
+  console.log('Tickets response:', { data, error, count })
+
+  if (error) {
+    console.error('Error fetching tickets:', error)
+    return {
+      tickets: [],
+      totalCount: 0,
+      currentPage: page,
+      totalPages: 0,
+      pageSize
+    }
+  }
+
   return {
     tickets: data as Ticket[],
     totalCount: count || 0,
@@ -54,16 +73,6 @@ const fetchTickets = async ({ page = 1, pageSize = PAGE_SIZE }) => {
 // Add user fetcher
 const fetchUsers = async () => {
   try {
-    // Get session first to ensure user is authenticated
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !session) {
-      console.error('Session error:', sessionError)
-      return [] // Return empty array instead of throwing
-    }
-
-    console.log('Current session:', session)
-
-    // Get all users from secure table
     const { data: users, error: usersError } = await supabase
       .from('users_secure')
       .select('id, email, role, created_at')
@@ -71,32 +80,16 @@ const fetchUsers = async () => {
 
     if (usersError) {
       console.error('User fetch error:', usersError)
-      console.error('Error details:', {
-        code: usersError.code,
-        message: usersError.message,
-        details: usersError.details,
-        hint: usersError.hint
-      })
-      return [] // Return empty array instead of throwing
+      return []
     }
-    
-    console.log('Fetched users:', users)
     
     return users?.map(user => ({
       ...user,
-      // Use email prefix as display name
       display_name: user.email.split('@')[0]
     })) || []
   } catch (err) {
     console.error('Fetch users error:', err)
-    if (err instanceof Error) {
-      console.error('Error details:', {
-        name: err.name,
-        message: err.message,
-        stack: err.stack
-      })
-    }
-    return [] // Return empty array instead of throwing
+    return []
   }
 }
 
@@ -120,10 +113,11 @@ export function useTicket(id: string) {
   }
 }
 
-// Update hook for paginated list
+// Hook for paginated list
 export function useTicketList(page = 1, pageSize = PAGE_SIZE) {
+  const { user } = useAuth()
   const { data, error, mutate } = useSWR(
-    [`tickets`, page, pageSize],
+    user ? [`tickets`, page, pageSize] : null,
     () => fetchTickets({ page, pageSize }),
     {
       revalidateOnFocus: true,
@@ -144,7 +138,7 @@ export function useTicketList(page = 1, pageSize = PAGE_SIZE) {
   }
 }
 
-// Add users hook
+// Hook for fetching users
 export function useUsers() {
   const { data, error } = useSWR('users', fetchUsers, {
     revalidateOnFocus: true,
@@ -278,7 +272,7 @@ export function useTicketMutations() {
 export function useTicketActivities(ticketId: string) {
   const { data, error, isLoading, mutate } = useSWR(
     ticketId ? `ticket-activities-${ticketId}` : null,
-    () => ticketService.getTicketActivities(ticketId)
+    () => ticketService.getActivities(ticketId)
   )
 
   const activities = data?.data || []

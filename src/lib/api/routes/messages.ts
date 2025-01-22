@@ -1,4 +1,4 @@
-import getSupabaseClient from '@/lib/supabase/client'
+import { createApiClient } from '@/lib/supabase/server'
 import { createTicketMessageSchema, ticketMessageSchema } from '@/lib/validation'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
@@ -8,7 +8,7 @@ export const messages = {
         try {
             if (!ticketId) throw new Error('Ticket ID is required')
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
             const { data, error } = await supabase
                 .from('ticket_messages')
                 .select('*')
@@ -39,7 +39,7 @@ export const messages = {
             // Validate input data
             const validatedData = createTicketMessageSchema.parse(data)
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
 
             // First verify the ticket exists
             const { data: ticket, error: ticketError } = await supabase
@@ -81,7 +81,7 @@ export const messages = {
             if (!id) throw new Error('Message ID is required')
             if (!content?.trim()) throw new Error('Content is required')
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
             
             // First check if the user is the creator of the message
             const { data: existingMessage, error: fetchError } = await supabase
@@ -128,7 +128,7 @@ export const messages = {
         try {
             if (!id) throw new Error('Message ID is required')
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
 
             // First check if the user is the creator of the message
             const { data: existingMessage, error: fetchError } = await supabase

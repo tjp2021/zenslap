@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { 
   Workflow, 
   WorkflowConfig, 
@@ -6,25 +6,37 @@ import type {
   WorkflowCondition, 
   WorkflowAction 
 } from '@/lib/types/integrations'
+import type { Database } from '@/types/supabase'
 import { WebhookService } from './webhook.service'
 import { AIService } from './ai.service'
 import { Ticket } from '@/lib/types'
 
+interface ServiceDependencies {
+  webhookService: WebhookService
+  aiService: AIService
+}
+
 export class WorkflowService {
-  private static instance: WorkflowService
-  private supabase = createClientComponentClient()
-  private webhookService = WebhookService.getInstance()
+  private static instance: WorkflowService | null = null
   private workflows: Map<string, Workflow> = new Map()
 
-  private constructor() {
-    // Private constructor for singleton pattern
-  }
+  private constructor(
+    private readonly supabase: SupabaseClient<Database>,
+    private readonly dependencies: ServiceDependencies
+  ) {}
 
-  public static getInstance(): WorkflowService {
+  public static getInstance(
+    supabase: SupabaseClient<Database>,
+    dependencies: ServiceDependencies
+  ): WorkflowService {
     if (!WorkflowService.instance) {
-      WorkflowService.instance = new WorkflowService()
+      WorkflowService.instance = new WorkflowService(supabase, dependencies)
     }
     return WorkflowService.instance
+  }
+
+  public static resetInstance(): void {
+    WorkflowService.instance = null
   }
 
   // Workflow Management
@@ -146,13 +158,13 @@ export class WorkflowService {
         await this.sendNotification(action.config, context)
         break
       case 'trigger_webhook':
-        await this.webhookService.triggerWebhook(
+        await this.dependencies.webhookService.triggerWebhook(
           action.config.event,
           { ...context, workflow: action.config }
         )
         break
       case 'run_ai_analysis':
-        await this.runAIAnalysis(action.config, context)
+        await this.dependencies.aiService.analyze(action.config, context)
         break
     }
   }
@@ -168,10 +180,6 @@ export class WorkflowService {
 
   private async sendNotification(_config: any, _context: Record<string, any>): Promise<void> {
     // Implement notification logic (email, push, etc.)
-  }
-
-  private async runAIAnalysis(_config: any, _context: Record<string, any>): Promise<void> {
-    // Implement AI analysis logic
   }
 
   private getValueFromPath(obj: any, path: string): any {

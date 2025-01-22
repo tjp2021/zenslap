@@ -1,5 +1,6 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AIConfig, AIAnalysis, AIAnalysisType } from '@/lib/types/integrations'
+import type { Database } from '@/types/supabase'
 import type { TicketPriority } from '@/lib/types'
 
 interface AIResponse<T> {
@@ -35,19 +36,22 @@ interface UrgencyResponse {
 }
 
 export class AIService {
-  private static instance: AIService
-  private supabase = createClientComponentClient()
+  private static instance: AIService | null = null
   private config: AIConfig | null = null
 
-  private constructor() {
-    // Private constructor for singleton pattern
-  }
+  private constructor(
+    private readonly supabase: SupabaseClient<Database>
+  ) {}
 
-  public static getInstance(): AIService {
+  public static getInstance(supabase: SupabaseClient<Database>): AIService {
     if (!AIService.instance) {
-      AIService.instance = new AIService()
+      AIService.instance = new AIService(supabase)
     }
     return AIService.instance
+  }
+
+  public static resetInstance(): void {
+    AIService.instance = null
   }
 
   // Configuration Management
@@ -191,15 +195,30 @@ export class AIService {
     return analysisFunction(content, config)
   }
 
-  async generateSummary(_prompt: string, _config?: any) {
-    // Implementation
+  async generateSummary(prompt: string, config?: AIConfig): Promise<string> {
+    const aiConfig = config || await this.getConfig()
+    const response = await this.callAI<{ summary: string }>(
+      `Generate summary: ${prompt}`,
+      aiConfig
+    )
+    return response.result.summary
   }
 
-  async generateTags(_prompt: string, _config?: any) {
-    // Implementation
+  async generateTags(prompt: string, config?: AIConfig): Promise<string[]> {
+    const aiConfig = config || await this.getConfig()
+    const response = await this.callAI<{ tags: string[] }>(
+      `Generate tags: ${prompt}`,
+      aiConfig
+    )
+    return response.result.tags
   }
 
-  async generateTitle(_prompt: string, _config?: any) {
-    // Implementation
+  async generateTitle(prompt: string, config?: AIConfig): Promise<string> {
+    const aiConfig = config || await this.getConfig()
+    const response = await this.callAI<{ title: string }>(
+      `Generate title: ${prompt}`,
+      aiConfig
+    )
+    return response.result.title
   }
 }

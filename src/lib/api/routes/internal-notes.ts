@@ -1,4 +1,4 @@
-import getSupabaseClient from '@/lib/supabase/client'
+import { createApiClient } from '@/lib/supabase/server'
 import { createInternalNoteSchema, internalNoteSchema } from '@/lib/validation'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
@@ -8,7 +8,7 @@ export const internalNotes = {
         try {
             if (!ticketId) throw new Error('Ticket ID is required')
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
             const { data, error } = await supabase
                 .from('internal_notes')
                 .select('*')
@@ -16,7 +16,7 @@ export const internalNotes = {
                 .order('created_at', { ascending: true })
 
             if (error) throw error
-            if (!data) throw new Error('Failed to load internal notes')
+            if (!data) throw new Error('Failed to load notes')
 
             // Validate response data
             const validatedData = z.array(internalNoteSchema).safeParse(data)
@@ -26,10 +26,10 @@ export const internalNotes = {
 
             return { data: validatedData.data, error: null }
         } catch (err) {
-            console.error('Get internal notes error:', err)
+            console.error('Get notes error:', err)
             return { 
                 data: null, 
-                error: err instanceof Error ? err : new Error('Failed to load internal notes') 
+                error: err instanceof Error ? err : new Error('Failed to load notes') 
             }
         }
     },
@@ -39,7 +39,9 @@ export const internalNotes = {
             // Validate input data
             const validatedData = createInternalNoteSchema.parse(data)
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
+
+            // Create the note
             const { data: result, error } = await supabase
                 .from('internal_notes')
                 .insert([{
@@ -50,16 +52,16 @@ export const internalNotes = {
                 .single()
 
             if (error) throw error
-            if (!result) throw new Error('Failed to create internal note')
+            if (!result) throw new Error('Failed to create note')
 
             // Validate response data
             const validatedResult = internalNoteSchema.parse(result)
             return { data: validatedResult, error: null }
         } catch (err) {
-            console.error('Create internal note error:', err)
+            console.error('Create note error:', err)
             return { 
                 data: null, 
-                error: err instanceof Error ? err : new Error('Failed to create internal note') 
+                error: err instanceof Error ? err : new Error('Failed to create note') 
             }
         }
     },
@@ -69,7 +71,7 @@ export const internalNotes = {
             if (!id) throw new Error('Note ID is required')
             if (!content?.trim()) throw new Error('Content is required')
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
             
             // First check if the user is the creator of the note
             const { data: existingNote, error: fetchError } = await supabase
@@ -109,7 +111,7 @@ export const internalNotes = {
         try {
             if (!id) throw new Error('Note ID is required')
 
-            const supabase = client || getSupabaseClient()
+            const supabase = client || createApiClient()
 
             // First check if the user is the creator of the note
             const { data: existingNote, error: fetchError } = await supabase

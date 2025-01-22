@@ -1,12 +1,12 @@
 'use client'
 
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { LogOut } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
+import type { Database } from '@/types/supabase'
 
-export function SignOutButton() {
+export default function SignOutButton() {
   const router = useRouter()
+  const supabase = createClientComponentClient<Database>()
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -14,14 +14,11 @@ export function SignOutButton() {
   }
 
   return (
-    <Button 
-      variant="ghost" 
-      size="icon"
+    <button
       onClick={handleSignOut}
-      className="text-muted-foreground hover:text-foreground"
+      className="text-sm font-medium text-gray-700 hover:text-gray-800"
     >
-      <LogOut className="h-4 w-4" />
-      <span className="sr-only">Sign out</span>
-    </Button>
+      Sign out
+    </button>
   )
 } 

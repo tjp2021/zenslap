@@ -65,6 +65,10 @@ export function TicketDetails({ id }: TicketDetailsProps) {
         .select('*')
         .eq('id', id)
         .single()
+        .headers({
+          'Accept': 'application/vnd.pgrst.object+json',
+          'Prefer': 'return=representation'
+        })
       
       if (fetchError) {
         setError(fetchError.message)

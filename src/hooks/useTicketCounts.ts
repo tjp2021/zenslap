@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ticketService } from '@/lib/api/routes/tickets'
 import type { TicketCounts } from '@/lib/api/routes/tickets'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 export function useTicketCounts() {
 	const [counts, setCounts] = useState<TicketCounts>({ personal: 0, group: 0 })
@@ -22,10 +22,10 @@ export function useTicketCounts() {
 			setLoading(true)
 			setError(null)
 			
-			const { data, error } = await ticketService.getCounts(user.id)
+			const { data, error: apiError } = await ticketService.getCounts(user.id)
 			
-			if (error) {
-				setError(error instanceof Error ? error : new Error(String(error)))
+			if (apiError) {
+				setError(new Error(String(apiError)))
 			} else if (data) {
 				setCounts(data)
 			}

@@ -1,9 +1,13 @@
 import useSWR from 'swr'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/lib/hooks/useAuth'
 import { ticketService } from '@/lib/api/routes/tickets'
 import type { TicketActivity } from '@/lib/types/activities'
 
 const CACHE_KEY = 'ticket-updates'
+
+interface ActivityResponse {
+  data: TicketActivity[] | null
+}
 
 export function useTicketUpdates() {
   const { user } = useAuth()
@@ -19,13 +23,15 @@ export function useTicketUpdates() {
       const activities = await Promise.all(
         tickets
           .filter(ticket => ticket.assignee === user?.id)
-          .map(ticket => ticketService.getTicketActivities(ticket.id))
+          .map(ticket => ticketService.getActivities(ticket.id))
       )
       
       // Flatten activities and sort by date
       return activities
-        .flatMap(result => result.data || [])
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .flatMap((result: ActivityResponse) => result.data || [])
+        .sort((a: TicketActivity, b: TicketActivity) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
         .slice(0, 10) // Only show 10 most recent updates
     },
     {

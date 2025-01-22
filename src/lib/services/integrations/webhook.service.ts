@@ -1,5 +1,6 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { WebhookConfig, WebhookEvent } from '@/lib/types/integrations'
+import type { Database } from '@/types/supabase'
 import { createHmac } from 'crypto'
 import { z } from 'zod'
 import { Ticket } from '@/lib/types'
@@ -11,19 +12,22 @@ interface WebhookPayload {
 }
 
 export class WebhookService {
-  private static instance: WebhookService
-  private supabase = createClientComponentClient()
+  private static instance: WebhookService | null = null
   private webhooks: Map<string, WebhookConfig> = new Map()
 
-  private constructor() {
-    // Private constructor for singleton pattern
-  }
+  private constructor(
+    private readonly supabase: SupabaseClient<Database>
+  ) {}
 
-  public static getInstance(): WebhookService {
+  public static getInstance(supabase: SupabaseClient<Database>): WebhookService {
     if (!WebhookService.instance) {
-      WebhookService.instance = new WebhookService()
+      WebhookService.instance = new WebhookService(supabase)
     }
     return WebhookService.instance
+  }
+
+  public static resetInstance(): void {
+    WebhookService.instance = null
   }
 
   // CRUD Operations

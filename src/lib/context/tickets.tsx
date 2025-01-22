@@ -5,6 +5,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/types/supabase'
 import type { Ticket, CreateTicketDTO, UpdateTicketDTO } from '@/lib/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 
 type OperationType = 'create' | 'update' | 'delete' | 'load' | 'bulk_update' | 'assign'
 type OperationStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -70,13 +72,15 @@ const defaultSort: SortConfig = {
 
 const TicketsContext = createContext<TicketsContextType | undefined>(undefined)
 
-export function TicketsProvider({ 
+function TicketsProviderContent({ 
   children,
   supabaseClient
 }: { 
   children: ReactNode
   supabaseClient?: SupabaseClient
 }) {
+  console.log('TicketsProvider mounted') // Debug log
+  
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [users, setUsers] = useState<{ id: string; email: string }[]>([])
   const [operations, setOperations] = useState<OperationState[]>([])
@@ -85,6 +89,7 @@ export function TicketsProvider({
   const defaultClient = createClientComponentClient<Database>()
   const supabase = supabaseClient || defaultClient
   const [loading, setLoading] = useState(false)
+  const { user } = useAuth()
 
   // Memoized filtered and sorted tickets
   const filteredAndSortedTickets = useMemo(() => {
@@ -200,23 +205,42 @@ export function TicketsProvider({
   }
 
   const loadTickets = useCallback(async () => {
+    if (!user) {
+      console.log('No authenticated user found')
+      setTickets([])
+      return
+    }
+
     setLoading(true)
     try {
+      console.log('Fetching tickets with user:', user.id)
       const { data, error } = await supabase
         .from('tickets')
         .select('*')
         .order('created_at', { ascending: false })
       
-      if (error) throw error
+      if (error) {
+        console.error('Database error:', error)
+        throw new Error(`Failed to load tickets: ${error.message}`)
+      }
+
+      console.log('Fetched tickets:', data?.length || 0)
       setTickets(data || [])
     } catch (err) {
       console.error('Error loading tickets:', err)
+      throw err // Let error boundary handle it
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, user])
 
   const loadUsers = useCallback(async () => {
+    if (!user) {
+      console.log('No authenticated user found')
+      setUsers([])
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('users_secure')
@@ -227,12 +251,14 @@ export function TicketsProvider({
     } catch (err) {
       console.error('Error loading users:', err)
     }
-  }, [supabase])
+  }, [supabase, user])
 
   useEffect(() => {
-    loadTickets()
-    loadUsers()
-  }, [loadTickets, loadUsers])
+    if (user) {
+      loadTickets()
+      loadUsers()
+    }
+  }, [loadTickets, loadUsers, user])
 
   async function createTicket(data: CreateTicketDTO) {
     try {
@@ -370,6 +396,31 @@ export function TicketsProvider({
     <TicketsContext.Provider value={value}>
       {children}
     </TicketsContext.Provider>
+  )
+}
+
+export function TicketsProvider({ 
+  children,
+  supabaseClient
+}: { 
+  children: ReactNode
+  supabaseClient?: SupabaseClient
+}) {
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="p-4 rounded-md bg-yellow-50 border border-yellow-200">
+          <h2 className="text-lg font-semibold text-yellow-800">Unable to load tickets</h2>
+          <p className="mt-2 text-sm text-yellow-700">
+            There was a problem loading your tickets. Please try refreshing the page.
+          </p>
+        </div>
+      }
+    >
+      <TicketsProviderContent supabaseClient={supabaseClient}>
+        {children}
+      </TicketsProviderContent>
+    </ErrorBoundary>
   )
 }
 
