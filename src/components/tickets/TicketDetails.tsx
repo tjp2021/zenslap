@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Trash2, Clock } from "lucide-react"
 import { updateTicketSchema } from '@/lib/validation/tickets'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { can, TicketActions } from '@/lib/permissions'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +46,7 @@ interface TicketDetailsProps {
 
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
-  const { supabase } = useAuth()
+  const { user, supabase } = useAuth()
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -190,6 +191,20 @@ export function TicketDetails({ id }: TicketDetailsProps) {
     }
   }
 
+  // Check permissions
+  const canEditTicket = useCallback((field?: keyof Ticket) => {
+    if (!ticket) return false
+    if (field) {
+      return can(TicketActions[`EDIT_${field.toUpperCase()}` as keyof typeof TicketActions], user, ticket)
+    }
+    return can(TicketActions.EDIT, user, ticket)
+  }, [user, ticket])
+
+  const canDeleteTicket = useCallback(() => {
+    if (!ticket) return false
+    return can(TicketActions.DELETE, user, ticket)
+  }, [user, ticket])
+
   if (error) {
     return (
       <Alert variant="destructive">
@@ -218,45 +233,48 @@ export function TicketDetails({ id }: TicketDetailsProps) {
           >
             Back
           </Button>
-          <Button
-            onClick={() => setIsEditing(!isEditing)}
-            disabled={saving || deleting}
-          >
-            {isEditing ? 'Cancel' : 'Edit'}
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={deleting}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the ticket.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {canEditTicket() && (
+            <Button
+              onClick={() => setIsEditing(!isEditing)}
+              disabled={saving || deleting}
+            >
+              {isEditing ? 'Cancel' : 'Edit'}
+            </Button>
+          )}
+          {canDeleteTicket() && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={deleting}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the ticket.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
+        <CardContent className="p-6">
+          {isEditing ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Input
                   name="title"
                   defaultValue={ticket.title}
-                  disabled={!isEditing || saving}
-                  className={validationErrors.title ? 'border-red-500' : ''}
+                  disabled={!canEditTicket('title')}
                 />
                 {validationErrors.title && (
                   <p className="text-sm text-red-500 mt-1">{validationErrors.title}</p>
@@ -267,8 +285,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                 <Textarea
                   name="description"
                   defaultValue={ticket.description}
-                  disabled={!isEditing || saving}
-                  className={validationErrors.description ? 'border-red-500' : ''}
+                  disabled={!canEditTicket('description')}
                 />
                 {validationErrors.description && (
                   <p className="text-sm text-red-500 mt-1">{validationErrors.description}</p>
@@ -280,77 +297,118 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                   <Select
                     name="status"
                     defaultValue={ticket.status}
-                    disabled={!isEditing || saving}
+                    disabled={!canEditTicket('status')}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {TICKET_STATUSES.map(status => (
-                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {validationErrors.status && (
+                    <p className="text-sm text-red-500 mt-1">{validationErrors.status}</p>
+                  )}
                 </div>
 
                 <div>
                   <Select
                     name="priority"
                     defaultValue={ticket.priority}
-                    disabled={!isEditing || saving}
+                    disabled={!canEditTicket('priority')}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {TICKET_PRIORITIES.map(priority => (
-                        <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                        <SelectItem key={priority} value={priority}>
+                          {priority}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {validationErrors.priority && (
+                    <p className="text-sm text-red-500 mt-1">{validationErrors.priority}</p>
+                  )}
                 </div>
               </div>
 
-              {isEditing && (
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={saving}>
-                    {saving ? 'Saving...' : 'Save Changes'}
-                  </Button>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditing(false)}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="space-y-2">
+                    <div>
+                      <h2 className="text-lg font-semibold">Title</h2>
+                      <p>{ticket.title}</p>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold">Description</h2>
+                      <p>{ticket.description}</p>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold">Status</h2>
+                      <Badge>{ticket.status}</Badge>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold">Priority</h2>
+                      <Badge>{ticket.priority}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* History Section */}
+              <div className="mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <Clock className="h-5 w-5" />
+                  <h2 className="text-lg font-semibold">History</h2>
                 </div>
-              )}
-            </div>
-          </form>
+                {loadingHistory ? (
+                  <p>Loading history...</p>
+                ) : history.length === 0 ? (
+                  <p className="text-gray-500">No changes recorded</p>
+                ) : (
+                  <div className="space-y-2">
+                    {history.map((entry) => (
+                      <div key={entry.id} className="text-sm text-gray-600">
+                        <span>
+                          {entry.field} changed from{' '}
+                          <Badge variant="secondary">{entry.old_value || 'none'}</Badge>
+                          {' '}to{' '}
+                          <Badge variant="secondary">{entry.new_value}</Badge>
+                        </span>
+                        <span className="text-gray-400 ml-2">
+                          ({new Date(entry.created_at).toLocaleString()})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
-
-      {/* History Section */}
-      <div className="mt-8">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock className="h-5 w-5" />
-          <h2 className="text-lg font-semibold">History</h2>
-        </div>
-        {loadingHistory ? (
-          <p>Loading history...</p>
-        ) : history.length === 0 ? (
-          <p className="text-gray-500">No changes recorded</p>
-        ) : (
-          <div className="space-y-2">
-            {history.map((entry) => (
-              <div key={entry.id} className="text-sm text-gray-600">
-                <span>
-                  {entry.field} changed from{' '}
-                  <Badge variant="secondary">{entry.old_value || 'none'}</Badge>
-                  {' '}to{' '}
-                  <Badge variant="secondary">{entry.new_value}</Badge>
-                </span>
-                <span className="text-gray-400 ml-2">
-                  ({new Date(entry.created_at).toLocaleString()})
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </>
   )
 } 
