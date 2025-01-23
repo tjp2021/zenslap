@@ -21,8 +21,8 @@ export type TicketAction = typeof TicketActions[keyof typeof TicketActions]
 
 // Define conditions that can be reused across permission checks
 const conditions = {
-  isAdmin: (user: User | null) => user?.role === UserRole.ADMIN,
-  isAgent: (user: User | null) => user?.role === UserRole.AGENT,
+  isAdmin: (user: User | null) => user?.role.toUpperCase() === UserRole.ADMIN,
+  isAgent: (user: User | null) => user?.role.toUpperCase() === UserRole.AGENT,
   isTicketCreator: (user: User | null, ticket: Ticket) => user?.id === ticket.created_by,
   isAssignedAgent: (user: User | null, ticket: Ticket) => user?.id === ticket.assignee,
   isTicketOpen: (_user: User | null, ticket: Ticket) => ticket.status !== 'closed',
@@ -36,18 +36,15 @@ const permissionRules: Record<TicketAction, (user: User | null, ticket: Ticket) 
   [TicketActions.EDIT]: (user, ticket) => 
     conditions.isAuthenticated(user) &&
     conditions.isTicketOpen(user, ticket) &&
-    (conditions.isAdmin(user) || 
-     (conditions.isAgent(user) && conditions.isAssignedAgent(user, ticket))),
+    (conditions.isAdmin(user) || conditions.isAgent(user)),
   
   [TicketActions.EDIT_STATUS]: (user, ticket) =>
     conditions.isTicketOpen(user, ticket) &&
-    (conditions.isAdmin(user) || 
-     (conditions.isAgent(user) && conditions.isAssignedAgent(user, ticket))),
+    (conditions.isAdmin(user) || conditions.isAgent(user)),
   
   [TicketActions.EDIT_PRIORITY]: (user, ticket) =>
     conditions.isTicketOpen(user, ticket) &&
-    (conditions.isAdmin(user) || 
-     (conditions.isAgent(user) && conditions.isAssignedAgent(user, ticket))),
+    (conditions.isAdmin(user) || conditions.isAgent(user)),
   
   [TicketActions.EDIT_ASSIGNEE]: (user, ticket) =>
     conditions.isTicketOpen(user, ticket) &&

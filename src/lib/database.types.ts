@@ -40,6 +40,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          mentions: string[] | null
           ticket_id: string
           updated_at: string
         }
@@ -48,6 +49,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          mentions?: string[] | null
           ticket_id: string
           updated_at?: string
         }
@@ -56,6 +58,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          mentions?: string[] | null
           ticket_id?: string
           updated_at?: string
         }
@@ -383,7 +386,6 @@ export type Database = {
       users_secure: {
         Row: {
           created_at: string
-          display_name: string | null
           email: string
           id: string
           role: string | null
@@ -391,7 +393,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          display_name?: string | null
           email: string
           id: string
           role?: string | null
@@ -399,7 +400,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          display_name?: string | null
           email?: string
           id?: string
           role?: string | null
@@ -412,7 +412,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      update_ticket_with_activity: {
+        Args: {
+          p_ticket_id: string
+          p_updates: Json
+          p_actor_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

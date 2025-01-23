@@ -574,3 +574,133 @@ const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sessi
 6. Callback route exchanges code for session
 7. Sets up proper auth state
 8. Redirects to /tickets
+
+## React Form State Management Case Study
+
+### Problem/Feature Overview
+- Initial Requirements: Edit ticket details with proper state management
+- Key Challenges: Form state resetting unexpectedly, multiple re-renders
+- Success Criteria: Stable edit mode, proper state transitions
+
+### Solution Attempts
+
+#### Attempt #1: Multiple useState Approach
+- Approach: Separate state variables for editing, validation, and form data
+- Implementation: Multiple useState hooks
+- Outcome: Failed - state synchronization issues
+- Learnings: Too many sources of truth
+
+#### Attempt #2: useEffect Debug
+- Approach: Added debug logging and effect cleanup
+- Implementation: Console logs for state transitions
+- Outcome: Failed - identified circular dependencies
+- Learnings: Effects were causing cascading updates
+
+#### Attempt #3: Form Component Memoization
+- Approach: Memoized form component and handlers
+- Implementation: useMemo and useCallback
+- Outcome: Partial success - reduced re-renders but didn't fix state
+- Learnings: Memoization alone doesn't solve state management
+
+### Final Solution
+#### Implementation Details
+```typescript
+// Form state reducer pattern
+type FormAction = 
+  | { type: 'START_EDITING' }
+  | { type: 'CANCEL_EDITING' }
+  | { type: 'START_SUBMITTING' }
+  | { type: 'SET_VALIDATION_ERRORS', errors: Record<string, string> }
+  | { type: 'MARK_FIELD_DIRTY', field: keyof UpdateTicketDTO }
+  | { type: 'RESET' }
+
+function formReducer(state: FormState, action: FormAction): FormState {
+  switch (action.type) {
+    case 'START_EDITING':
+      return {
+        ...state,
+        status: 'editing',
+        validationErrors: {},
+        dirtyFields: new Set<keyof UpdateTicketDTO>()
+      }
+    // ... other cases
+  }
+}
+
+// Usage with proper memoization
+const EditForm = useMemo(() => {
+  return (
+    <form 
+      key={isEditing ? 'editing' : 'viewing'} 
+      onSubmit={handleSubmit}
+    >
+      {/* Form fields */}
+    </form>
+  )
+}, [/* dependencies */])
+```
+
+#### Why It Works
+1. Single source of truth (reducer)
+2. Clear state transitions
+3. Proper form key for remounting
+4. Memoized render prevention
+5. Type-safe state management
+
+### Key Lessons
+#### Technical Insights
+- State machines are powerful for form management
+- Reducers provide predictable state transitions
+- Form remounting can prevent state conflicts
+- TypeScript ensures state integrity
+
+#### Process Improvements
+- Start with state machine design
+- Add strategic logging points
+- Monitor component lifecycles
+- Test state transitions thoroughly
+
+#### Best Practices
+1. **State Management**
+   - Use reducers for complex state
+   - Single source of truth
+   - Clear state transitions
+   - Type-safe actions
+
+2. **Performance**
+   - Strategic memoization
+   - Controlled re-renders
+   - Clean component remounting
+   - Proper dependency tracking
+
+3. **Form Handling**
+   - Track dirty fields
+   - Validate on submit
+   - Clear error states
+   - Handle cancellation
+
+#### Anti-Patterns Avoided
+1. **State Management**
+   - Multiple sources of truth
+   - Direct state mutations
+   - Unclear state transitions
+   - Untyped state updates
+
+2. **Performance**
+   - Unnecessary re-renders
+   - Over-memoization
+   - Premature optimization
+   - Effect abuse
+
+3. **Form Handling**
+   - Auto-submission
+   - Uncontrolled state
+   - Missing validation
+   - Unclear user feedback
+
+### Core Lessons
+1. Form state is complex and needs proper architecture
+2. Reducers provide clear state management
+3. TypeScript ensures state integrity
+4. Strategic memoization prevents issues
+5. Clean mounting prevents state conflicts

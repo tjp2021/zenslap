@@ -3,7 +3,8 @@ export const ACTIVITY_TYPES = {
   COMMENT: 'comment',
   STATUS_CHANGE: 'status_change',
   FIELD_CHANGE: 'field_change',
-  ASSIGNMENT: 'assignment'
+  ASSIGNMENT: 'assignment',
+  TAG_CHANGE: 'tag_change'
 } as const
 
 // Activity type from constants
@@ -31,6 +32,20 @@ export interface AssignmentContent {
   to: string | null
 }
 
+export interface TagChangeContent {
+  action: 'add' | 'remove'
+  tag: string
+}
+
+// Union type for all activity content types
+export type ActivityContent = {
+  comment: CommentContent
+  status_change: StatusChangeContent
+  field_change: FieldChangeContent
+  assignment: AssignmentContent
+  tag_change: TagChangeContent
+}
+
 // Actor type
 export interface Actor {
   id: string
@@ -45,7 +60,7 @@ export interface TicketActivity {
   actor_id: string
   actor: Actor
   activity_type: ActivityType
-  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
+  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent | TagChangeContent
   created_at: string
   is_internal: boolean
 }
@@ -55,5 +70,5 @@ export interface CreateActivityDTO {
   ticket_id: string
   actor_id: string
   activity_type: ActivityType
-  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
+  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent | TagChangeContent
 } 

@@ -26,7 +26,7 @@ export function useAuth() {
         const appUser: User = {
           id: session.user.id,
           email: session.user.email || '',
-          role: session.user.user_metadata.role || UserRole.USER,
+          role: (session.user.user_metadata.role || UserRole.USER).toLowerCase() as UserRole,
           created_at: session.user.created_at,
         }
         setUser(appUser)
@@ -45,7 +45,7 @@ export function useAuth() {
         const appUser: User = {
           id: session.user.id,
           email: session.user.email || '',
-          role: session.user.user_metadata.role || UserRole.USER,
+          role: (session.user.user_metadata.role || UserRole.USER).toLowerCase() as UserRole,
           created_at: session.user.created_at,
         }
         setUser(appUser)

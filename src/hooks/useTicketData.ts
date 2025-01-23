@@ -61,9 +61,12 @@
 
 import useSWR, { mutate } from 'swr'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import type { Ticket } from '@/lib/types'
+import type { Ticket, UpdateTicketDTO } from '@/lib/types'
 import { useAuth } from '@/lib/hooks/useAuth'
 import type { Database } from '@/types/supabase'
+import { useCallback } from 'react'
+import { ACTIVITY_TYPES } from '@/lib/types/activities'
+import { UserRole } from '@/lib/types'
 
 // Create a single client instance
 const supabase = createClientComponentClient<Database>()
@@ -155,22 +158,67 @@ export function useTicketList(page = 1, pageSize = PAGE_SIZE, filters: TicketFil
 
 // Hook for single ticket
 export function useTicket(id: string) {
-  const { user } = useAuth()
-  const { data, error, mutate } = useSWR(
-    user && id ? ['ticket', id] : null,
-    () => fetchTicket(id),
+  const { data: ticket, error, mutate } = useSWR<Ticket>(
+    ['ticket', id], 
+    async () => {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) throw error
+      return data as Ticket
+    },
     {
-      revalidateOnFocus: true,
-      revalidateOnReconnect: true,
-      dedupingInterval: 5000,
+      revalidateOnFocus: false,
+      revalidateIfStale: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 5000
     }
   )
 
+  const updateTicket = useCallback(async (updates: UpdateTicketDTO) => {
+    const { data: oldTicket } = await supabase
+      .from('tickets')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    const { data: updatedTicket, error } = await supabase
+      .from('tickets')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    // Track priority changes
+    if (updates.priority && oldTicket?.priority !== updates.priority) {
+      await supabase
+        .from('ticket_activities')
+        .insert({
+          ticket_id: id,
+          activity_type: ACTIVITY_TYPES.FIELD_CHANGE,
+          content: {
+            field: 'priority',
+            from: oldTicket?.priority,
+            to: updates.priority
+          }
+        })
+    }
+
+    await mutate(updatedTicket as Ticket)
+    return updatedTicket as Ticket
+  }, [supabase, id, mutate])
+
   return {
-    ticket: data?.data,
-    isLoading: !error && !data,
+    ticket,
+    isLoading: !error && !ticket,
     isError: error,
     mutate,
+    updateTicket
   }
 }
 
@@ -223,16 +271,24 @@ export function useTicketMutations() {
 
 // Hook for fetching users
 export function useUsers() {
-  const { data, error } = useSWR('users', fetchUsers, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    dedupingInterval: 10000,
+  const { data, error } = useSWR('users', async () => {
+    const { data, error } = await supabase
+      .from('users_secure')
+      .select('id, email, role')
+      .in('role', [UserRole.ADMIN, UserRole.AGENT])
+      .order('email')
+
+    if (error) throw error
+    return data || []
+  }, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000 // Cache for 1 minute
   })
 
   return {
-    users: data?.data || [],
+    users: data,
     isLoading: !error && !data,
-    isError: error,
+    isError: error
   }
 }
 

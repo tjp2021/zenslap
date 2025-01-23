@@ -7,6 +7,7 @@ export const createTicketSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   status: z.enum(TICKET_STATUSES).optional().default('open'),
   priority: z.enum(TICKET_PRIORITIES).optional().default('medium'),
+  assignee: z.string().uuid('Invalid assignee ID').nullable().optional(),
   metadata: z.record(z.unknown()).optional().default({})
 })
 
@@ -16,12 +17,13 @@ export const updateTicketSchema = z.object({
   description: z.string().optional(),
   status: z.enum(TICKET_STATUSES).optional(),
   priority: z.enum(TICKET_PRIORITIES).optional(),
+  assignee: z.string().uuid('Invalid assignee ID').nullable().optional(),
   metadata: z.record(z.unknown()).optional()
 })
 
 const commentContentSchema = z.object({
-  message: z.string().min(1, 'Message is required'),
-  format: z.literal('text')
+  text: z.string().min(1, 'Message is required'),
+  is_internal: z.boolean()
 }) satisfies z.ZodType<ActivityContent['comment']>
 
 const statusChangeContentSchema = z.object({
@@ -40,6 +42,11 @@ const assignmentContentSchema = z.object({
   to: z.string().uuid().nullable()
 }) satisfies z.ZodType<ActivityContent['assignment']>
 
+const tagChangeContentSchema = z.object({
+  action: z.enum(['add', 'remove']),
+  tag: z.string()
+}) satisfies z.ZodType<ActivityContent['tag_change']>
+
 export const createActivitySchema = z.object({
   ticket_id: z.string().uuid('Invalid ticket ID'),
   activity_type: z.nativeEnum(ACTIVITY_TYPES),
@@ -47,7 +54,8 @@ export const createActivitySchema = z.object({
     z.object({ activity_type: z.literal(ACTIVITY_TYPES.COMMENT), content: commentContentSchema }),
     z.object({ activity_type: z.literal(ACTIVITY_TYPES.STATUS_CHANGE), content: statusChangeContentSchema }),
     z.object({ activity_type: z.literal(ACTIVITY_TYPES.FIELD_CHANGE), content: fieldChangeContentSchema }),
-    z.object({ activity_type: z.literal(ACTIVITY_TYPES.ASSIGNMENT), content: assignmentContentSchema })
+    z.object({ activity_type: z.literal(ACTIVITY_TYPES.ASSIGNMENT), content: assignmentContentSchema }),
+    z.object({ activity_type: z.literal(ACTIVITY_TYPES.TAG_CHANGE), content: tagChangeContentSchema })
   ]).transform(data => data.content)
 })
 
@@ -60,7 +68,8 @@ export const ticketActivitySchema = z.object({
     commentContentSchema,
     statusChangeContentSchema,
     fieldChangeContentSchema,
-    assignmentContentSchema
+    assignmentContentSchema,
+    tagChangeContentSchema
   ]),
   created_at: z.string().datetime()
 })
