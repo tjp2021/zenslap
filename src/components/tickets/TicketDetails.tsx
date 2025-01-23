@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Ticket } from '@/lib/types'
+import { Ticket, UserRole } from '@/lib/types'
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Trash2, Clock, Tag, User, MessageSquare, CheckCircle2, XCircle } from "lucide-react"
 import { updateTicketSchema } from '@/lib/validation/tickets'
@@ -36,6 +36,8 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import { Separator } from "@/components/ui/separator"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { InternalNotes } from './InternalNotes'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 interface TicketHistory {
   id: string
@@ -48,6 +50,9 @@ interface TicketHistory {
 interface TicketDetailsProps {
   id: string
 }
+
+// Create a client
+const queryClient = new QueryClient()
 
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
@@ -205,199 +210,189 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   }
 
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            {isEditing ? (
-              <Input
-                name="title"
-                defaultValue={ticket.title}
-                disabled={!canEditTicket('title')}
-                className="text-xl font-semibold"
-                placeholder="Ticket title"
-                onChange={(e) => {
-                  if (canEditTicket('title')) {
-                    setValidationErrors({ ...validationErrors, title: e.target.value })
-                  }
-                }}
-              />
-            ) : (
-              <h1 className="text-xl font-semibold text-gray-900">{ticket.title}</h1>
-            )}
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>Created {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <MessageSquare className="h-4 w-4" />
-                <span>{ticket.comment_count || 0} comments</span>
-              </div>
-            </div>
-          </div>
-          {canEditTicket() && !isEditing && (
-            <Button
-              onClick={() => setIsEditing(true)}
-              variant="outline"
-              className="text-gray-600 hover:text-gray-900"
-            >
-              Edit Ticket
-            </Button>
-          )}
-        </div>
-
-        <Separator />
-
-        {/* Main Content */}
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 space-y-6">
-            {/* Description */}
-            <div className="space-y-2">
-              <h2 className="text-sm font-medium text-gray-700">Description</h2>
-              {isEditing ? (
-                <Textarea
-                  name="description"
-                  defaultValue={ticket.description}
-                  disabled={!canEditTicket('description')}
-                  className="min-h-[200px]"
-                  placeholder="Ticket description"
-                  onChange={(e) => {
-                    if (canEditTicket('description')) {
-                      setValidationErrors({ ...validationErrors, description: e.target.value })
-                    }
-                  }}
-                />
-              ) : (
-                <div className="prose prose-sm max-w-none">
-                  {ticket.description || 'No description provided.'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Sidebar */}
+    <QueryClientProvider client={queryClient}>
+      <div className="space-y-8">
+        <Card className="p-6">
           <div className="space-y-6">
-            {/* Status */}
-            <div className="space-y-2">
-              <h2 className="text-sm font-medium text-gray-700">Status</h2>
-              {isEditing ? (
-                <Select
-                  name="status"
-                  defaultValue={ticket.status}
-                  disabled={!canEditTicket('status')}
-                  onValueChange={(value) => {
-                    if (canEditTicket('status')) {
-                      setValidationErrors({ ...validationErrors, status: value })
-                    }
-                  }}
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                {/* ... existing code ... */}
+              </div>
+              {canEditTicket() && !isEditing && (
+                <Button
+                  onClick={() => setIsEditing(true)}
+                  variant="outline"
+                  className="text-gray-600 hover:text-gray-900"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Badge className={`${getStatusColor(ticket.status)}`}>
-                  {ticket.status.replace('_', ' ')}
-                </Badge>
+                  Edit Ticket
+                </Button>
               )}
             </div>
 
-            {/* Priority */}
-            <div className="space-y-2">
-              <h2 className="text-sm font-medium text-gray-700">Priority</h2>
-              {isEditing ? (
-                <Select
-                  name="priority"
-                  defaultValue={ticket.priority}
-                  disabled={!canEditTicket('priority')}
-                  onValueChange={(value) => {
-                    if (canEditTicket('priority')) {
-                      setValidationErrors({ ...validationErrors, priority: value })
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select priority" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Badge className={`${getPriorityColor(ticket.priority)}`}>
-                  {ticket.priority}
-                </Badge>
-              )}
-            </div>
+            {/* Main Content */}
+            <div className="grid grid-cols-3 gap-6">
+              <div className="col-span-2 space-y-6">
+                {/* Description */}
+                <div className="space-y-2">
+                  <h2 className="text-sm font-medium text-gray-700">Description</h2>
+                  {isEditing ? (
+                    <Textarea
+                      name="description"
+                      defaultValue={ticket.description}
+                      disabled={!canEditTicket('description')}
+                      className="min-h-[200px]"
+                      placeholder="Ticket description"
+                      onChange={(e) => {
+                        if (canEditTicket('description')) {
+                          setValidationErrors({ ...validationErrors, description: e.target.value })
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="prose prose-sm max-w-none">
+                      {ticket.description || 'No description provided.'}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {/* Assignee */}
-            <div className="space-y-2">
-              <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
-              <div className="flex items-center space-x-2">
-                <User className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">
-                  {ticket.assignee || 'Unassigned'}
-                </span>
+              {/* Sidebar */}
+              <div className="space-y-6">
+                {/* Status */}
+                <div className="space-y-2">
+                  <h2 className="text-sm font-medium text-gray-700">Status</h2>
+                  {isEditing ? (
+                    <Select
+                      name="status"
+                      defaultValue={ticket.status}
+                      disabled={!canEditTicket('status')}
+                      onValueChange={(value) => {
+                        if (canEditTicket('status')) {
+                          setValidationErrors({ ...validationErrors, status: value })
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="open">Open</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="resolved">Resolved</SelectItem>
+                        <SelectItem value="closed">Closed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={`${getStatusColor(ticket.status)}`}>
+                      {ticket.status.replace('_', ' ')}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Priority */}
+                <div className="space-y-2">
+                  <h2 className="text-sm font-medium text-gray-700">Priority</h2>
+                  {isEditing ? (
+                    <Select
+                      name="priority"
+                      defaultValue={ticket.priority}
+                      disabled={!canEditTicket('priority')}
+                      onValueChange={(value) => {
+                        if (canEditTicket('priority')) {
+                          setValidationErrors({ ...validationErrors, priority: value })
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={`${getPriorityColor(ticket.priority)}`}>
+                      {ticket.priority}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Assignee */}
+                <div className="space-y-2">
+                  <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
+                  <div className="flex items-center space-x-2">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      {ticket.assignee || 'Unassigned'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                {ticket.tags && ticket.tags.length > 0 && (
+                  <div className="space-y-2">
+                    <h2 className="text-sm font-medium text-gray-700">Tags</h2>
+                    <div className="flex flex-wrap gap-2">
+                      {ticket.tags.map((tag: string) => (
+                        <div key={tag} className="flex items-center space-x-1">
+                          <Tag className="h-3 w-3 text-gray-400" />
+                          <span className="text-sm text-gray-600">{tag}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Tags */}
-            {ticket.tags && ticket.tags.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-sm font-medium text-gray-700">Tags</h2>
-                <div className="flex flex-wrap gap-2">
-                  {ticket.tags.map((tag: string) => (
-                    <div key={tag} className="flex items-center space-x-1">
-                      <Tag className="h-3 w-3 text-gray-400" />
-                      <span className="text-sm text-gray-600">{tag}</span>
-                    </div>
-                  ))}
-                </div>
+            {/* Edit Form Actions */}
+            {isEditing && (
+              <div className="flex items-center justify-end space-x-4 pt-4 border-t">
+                {Object.values(validationErrors).map((error, index) => (
+                  <div key={index} className="flex items-center text-red-600 text-sm">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    {error}
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditing(false)
+                    setValidationErrors({})
+                  }}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  form="ticket-details-form"
+                  disabled={saving}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </Button>
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* Edit Form Actions */}
-        {isEditing && (
-          <div className="flex items-center justify-end space-x-4 pt-4 border-t">
-            {Object.values(validationErrors).map((error, index) => (
-              <div key={index} className="flex items-center text-red-600 text-sm">
-                <AlertCircle className="h-4 w-4 mr-1" />
-                {error}
-              </div>
-            ))}
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditing(false)
-                setValidationErrors({})
-              }}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              form="ticket-details-form"
-              disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
+        {/* Internal Notes */}
+        {user && (
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Internal Notes</h2>
+            <InternalNotes
+              ticketId={id}
+              userId={user.id}
+              userRole={user.role}
+              className="mt-4"
+            />
+          </Card>
         )}
       </div>
-    </Card>
+    </QueryClientProvider>
   )
 } 

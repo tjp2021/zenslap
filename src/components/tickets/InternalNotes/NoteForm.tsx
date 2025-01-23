@@ -20,6 +20,14 @@ interface NoteFormProps {
 }
 
 export function NoteForm({ onSubmit, users, currentUserRole, isLoading, className }: NoteFormProps) {
+    console.log('🚀 NoteForm - Component Initializing', {
+        hasUsers: Boolean(users?.length),
+        currentUserRole,
+        isLoading
+    })
+    
+    console.log('🔍 NoteForm - Props:', { users, currentUserRole, isLoading })
+    
     const [content, setContent] = useState('')
     const [mentionQuery, setMentionQuery] = useState('')
     const [cursorPosition, setCursorPosition] = useState<{ top: number; left: number } | null>(null)
@@ -30,15 +38,18 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
         if (!content.trim() || isLoading) return
 
         try {
+            console.log('📝 NoteForm - Submitting content:', content)
             const mentions = extractMentions(content)
+            console.log('✨ NoteForm - Extracted mentions:', mentions)
             await onSubmit(content, mentions)
             setContent('')
-        } catch {
-            // Handle error silently - UI already shows failure states
+        } catch (error) {
+            console.error('❌ NoteForm - Submit error:', error)
         }
     }, [content, isLoading, onSubmit])
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        console.log('🎹 NoteForm - Key pressed:', e.key)
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             handleSubmitForm(e as unknown as React.FormEvent)
@@ -47,6 +58,7 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
 
         // Close mention suggestions on escape
         if (e.key === 'Escape' && mentionQuery) {
+            console.log('🚫 NoteForm - Closing mention suggestions')
             setMentionQuery('')
             setCursorPosition(null)
         }
@@ -54,31 +66,55 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newContent = e.target.value
+        console.log('📝 NoteForm - Content changed:', {
+            newContent,
+            length: newContent.length,
+            lastChar: newContent[newContent.length - 1]
+        })
         setContent(newContent)
 
         // Handle mention suggestions
         const textarea = e.target
         const cursorPos = textarea.selectionStart
         const textBeforeCursor = newContent.slice(0, cursorPos)
+        console.log('🔍 NoteForm - Cursor analysis:', {
+            cursorPos,
+            textBeforeCursor,
+            lastCharBeforeCursor: textBeforeCursor[textBeforeCursor.length - 1],
+            hasAtSymbol: textBeforeCursor.includes('@')
+        })
         const matches = textBeforeCursor.match(/@([^\s@]*)$/)
+        console.log('✨ NoteForm - @ pattern matching:', {
+            hasMatch: Boolean(matches),
+            matches,
+            pattern: '/@([^\\s@]*)$/'
+        })
 
         if (matches) {
+            console.log('📝 NoteForm - Found @ pattern, getting cursor position')
             // Get cursor position for suggestion popup
             const rect = textarea.getBoundingClientRect()
             const position = getCaretCoordinates(textarea, cursorPos)
+            console.log('📍 NoteForm - Cursor position:', position)
+            
+            // Calculate viewport-relative coordinates
+            const viewportTop = rect.top + window.scrollY + position.top
+            const viewportLeft = rect.left + window.scrollX + position.left
             
             setMentionQuery(matches[1])
             setCursorPosition({
-                top: rect.top + position.top,
-                left: rect.left + position.left
+                top: viewportTop,
+                left: viewportLeft
             })
         } else {
+            console.log('🚫 NoteForm - No @ pattern found')
             setMentionQuery('')
             setCursorPosition(null)
         }
     }
 
     const handleMentionSelect = (user: User) => {
+        console.log('👆 NoteForm - User selected for mention:', user)
         const textarea = textareaRef.current
         if (!textarea) return
 
@@ -87,6 +123,7 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
         const textAfterMention = content.slice(cursorPos)
         
         const newContent = `${textBeforeMention}@${user.email}${textAfterMention}`
+        console.log('✏️ NoteForm - New content with mention:', newContent)
         setContent(newContent)
         setMentionQuery('')
         setCursorPosition(null)
@@ -96,6 +133,13 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
         textarea.focus()
         textarea.setSelectionRange(newCursorPos, newCursorPos)
     }
+
+    console.log('🎯 NoteForm - Current state:', { 
+        content, 
+        mentionQuery, 
+        cursorPosition,
+        showingSuggestions: Boolean(mentionQuery && cursorPosition)
+    })
 
     return (
         <form 
@@ -116,8 +160,8 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
             {mentionQuery !== '' && cursorPosition && (
                 <div
                     style={{
-                        position: 'absolute',
-                        top: cursorPosition.top + 20, // Offset to show below the cursor
+                        position: 'fixed',
+                        top: cursorPosition.top + 24,
                         left: cursorPosition.left,
                         zIndex: 50
                     }}

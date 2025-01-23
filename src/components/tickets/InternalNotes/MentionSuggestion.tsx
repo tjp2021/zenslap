@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Command } from '@/components/ui'
+import { cn } from '@/lib/utils'
 import { UserRole } from '@/lib/types'
 import { filterMentionableUsers } from '@/lib/utils/mentions'
-import { Command } from '@/components/ui/command'
 
 interface User {
     id: string
@@ -12,57 +13,62 @@ interface User {
 interface MentionSuggestionProps {
     query: string
     users: User[]
-    onSelect: (user: User) => void
     currentUserRole: UserRole
+    onSelect: (user: User) => void
     className?: string
 }
 
 export function MentionSuggestion({ 
     query, 
     users, 
-    onSelect, 
     currentUserRole,
+    onSelect,
     className 
 }: MentionSuggestionProps) {
+    console.log('🚀 MentionSuggestion - Component Initializing', {
+        hasQuery: Boolean(query),
+        hasUsers: Boolean(users?.length),
+        currentUserRole
+    })
+
+    // Only show suggestions for ADMIN and AGENT users
     if (currentUserRole !== UserRole.ADMIN && currentUserRole !== UserRole.AGENT) {
+        console.log('🚫 MentionSuggestion - User not authorized:', currentUserRole)
         return null
     }
 
-    const [filteredUsers, setFilteredUsers] = useState<User[]>([])
+    // Filter users based on query and roles
+    const mentionableUsers = filterMentionableUsers(users)
+    console.log('👥 MentionSuggestion - Mentionable users:', mentionableUsers.length)
 
-    useEffect(() => {
-        // Filter mentionable users and then filter by query
-        const mentionable = filterMentionableUsers(users)
-        const filtered = mentionable.filter(user =>
-            user.email.toLowerCase().includes(query.toLowerCase())
-        )
-        setFilteredUsers(filtered)
-    }, [query, users])
+    const filteredUsers = mentionableUsers.filter(user => 
+        user.email.toLowerCase().includes(query.toLowerCase())
+    )
+    console.log('🔎 MentionSuggestion - Filtered users:', filteredUsers.length)
 
     const handleSelect = useCallback((user: User) => {
+        console.log('✨ MentionSuggestion - User selected:', user)
         onSelect(user)
     }, [onSelect])
 
+    // Don't show if no query or no filtered users
     if (!query || filteredUsers.length === 0) {
+        console.log('🚫 MentionSuggestion - No query or no filtered users')
         return null
     }
 
+    console.log('🎯 MentionSuggestion - Rendering suggestion list')
     return (
-        <Command className={className}>
-            <div className="p-2 text-sm text-muted-foreground">
-                Mentionable users
-            </div>
-            <div className="max-h-[200px] overflow-y-auto">
+        <Command className={cn('border rounded-lg shadow-md bg-white', className)}>
+            <div className="p-2 space-y-1">
                 {filteredUsers.map(user => (
                     <button
                         key={user.id}
-                        className="w-full px-4 py-2 text-left hover:bg-accent flex items-center gap-2"
                         onClick={() => handleSelect(user)}
+                        className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
                     >
-                        <span className="text-sm font-medium">{user.email}</span>
-                        <span className="text-xs text-muted-foreground capitalize">
-                            {user.role.toLowerCase()}
-                        </span>
+                        <div className="text-sm font-medium">{user.email}</div>
+                        <div className="text-xs text-gray-500">{user.role}</div>
                     </button>
                 ))}
             </div>

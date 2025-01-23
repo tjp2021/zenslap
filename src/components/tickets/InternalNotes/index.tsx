@@ -1,153 +1,164 @@
-import { useCallback, useState } from 'react'
+'use client'
+
+import { useCallback } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { internalNotes } from '@/lib/api/routes/internal-notes'
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay'
 import { NoteList } from './NoteList'
 import { NoteForm } from './NoteForm'
-import { ErrorBoundary } from '@/components/ui/error-boundary'
-import { Alert } from '@/components/ui/alert'
-import { LoadingOverlay } from '@/components/ui/LoadingOverlay'
 import { UserRole } from '@/lib/types'
-import { PermissionGate } from '@/components/auth/PermissionGate'
 
-interface InternalNotesProps {
-    ticketId: string
-    userId: string
-    userRole: UserRole
-    readOnly?: boolean
-    className?: string
+interface User {
+  id: string
+  email: string
+  role: UserRole
 }
 
-export function InternalNotes({ 
-    ticketId, 
-    userId, 
-    userRole,
-    readOnly = false, 
-    className 
-}: InternalNotesProps) {
-    const [error, setError] = useState<string | null>(null)
-    const queryClient = useQueryClient()
+interface InternalNotesProps {
+  ticketId: string
+  userId: string
+  userRole: UserRole
+  readOnly?: boolean
+  className?: string
+}
 
-    // Fetch notes
-    const { data: notes, isLoading: notesLoading } = useQuery({
-        queryKey: ['internal-notes', ticketId],
-        queryFn: async () => {
-            const result = await internalNotes.getByTicketId(ticketId)
-            if (result.error) throw result.error
-            return result.data || []
-        }
-    })
+export function InternalNotes({ ticketId, userId, userRole, readOnly = false, className }: InternalNotesProps) {
+  const supabase = createClientComponentClient<Database>()
+  const queryClient = useQueryClient()
 
-    // Fetch mentionable users (admin and agents)
-    const { data: users, isLoading: usersLoading } = useQuery({
-        queryKey: ['mentionable-users'],
-        queryFn: async () => {
-            const result = await fetch('/api/users/mentionable')
-            if (!result.ok) throw new Error('Failed to fetch mentionable users')
-            return result.json()
-        }
-    })
+  // Fetch notes for this ticket
+  const { data: notes, isLoading: notesLoading, error: notesError } = useQuery({
+    queryKey: ['notes', ticketId],
+    queryFn: async () => {
+      console.log('🔍 InternalNotes - Fetching notes for ticket:', ticketId)
+      const { data, error } = await supabase
+        .from('internal_notes')
+        .select('*')
+        .eq('ticket_id', ticketId)
+        .order('created_at', { ascending: true })
 
-    // Create note mutation
-    const createNote = useMutation({
-        mutationFn: async ({ content, mentions }: { content: string; mentions: string[] }) => {
-            const result = await internalNotes.create({
-                ticket_id: ticketId,
-                content,
-                mentions
-            }, userId)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['internal-notes', ticketId] })
-            setError(null)
-        },
-        onError: (err: Error) => {
-            setError(err.message)
-        }
-    })
-
-    // Update note mutation
-    const updateNote = useMutation({
-        mutationFn: async ({ id, content }: { id: string; content: string }) => {
-            const result = await internalNotes.update(id, content, userId)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['internal-notes', ticketId] })
-            setError(null)
-        },
-        onError: (err: Error) => {
-            setError(err.message)
-        }
-    })
-
-    // Delete note mutation
-    const deleteNote = useMutation({
-        mutationFn: async (id: string) => {
-            const result = await internalNotes.delete(id, userId)
-            if (result.error) throw result.error
-            return result.data
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['internal-notes', ticketId] })
-            setError(null)
-        },
-        onError: (err: Error) => {
-            setError(err.message)
-        }
-    })
-
-    const handleCreateNote = useCallback(async (content: string, mentions: string[]) => {
-        await createNote.mutateAsync({ content, mentions })
-    }, [createNote])
-
-    const handleUpdateNote = useCallback(async (id: string, content: string) => {
-        await updateNote.mutateAsync({ id, content })
-    }, [updateNote])
-
-    const handleDeleteNote = useCallback(async (id: string) => {
-        await deleteNote.mutateAsync(id)
-    }, [deleteNote])
-
-    if (notesLoading || usersLoading) {
-        return <LoadingOverlay />
+      if (error) throw error
+      console.log(`✅ InternalNotes - Fetched ${data?.length || 0} notes`)
+      return data || []
     }
+  })
 
+  // Fetch mentionable users (admins and agents)
+  const { data: users, isLoading: usersLoading, error: usersError } = useQuery({
+    queryKey: ['mentionable-users'],
+    queryFn: async () => {
+      console.log('🔍 InternalNotes - Fetching mentionable users')
+      const { data, error } = await supabase
+        .from('users_secure')
+        .select('*')
+        .in('role', ['admin', 'agent'])
+
+      if (error) throw error
+      console.log(`✅ InternalNotes - Fetched ${data?.length || 0} mentionable users`)
+      return (data || []) as User[]
+    }
+  })
+
+  // Create note mutation
+  const { mutate: createNote, isPending: isCreating } = useMutation({
+    mutationFn: async ({ content, mentions }: { content: string, mentions?: string[] }) => {
+      const { data, error } = await supabase
+        .from('internal_notes')
+        .insert([
+          {
+            ticket_id: ticketId,
+            content,
+            created_by: userId,
+            mentions
+          }
+        ])
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
+    }
+  })
+
+  // Update note mutation
+  const { mutate: updateNote, isPending: isUpdating } = useMutation({
+    mutationFn: async ({ id, content }: { id: string, content: string }) => {
+      const { data, error } = await supabase
+        .from('internal_notes')
+        .update({ content })
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
+    }
+  })
+
+  // Delete note mutation
+  const { mutate: deleteNote, isPending: isDeleting } = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('internal_notes')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
+    }
+  })
+
+  const handleCreateNote = useCallback(async (content: string, mentions?: string[]) => {
+    await createNote({ content, mentions })
+  }, [createNote])
+
+  const handleUpdateNote = useCallback(async (id: string, content: string) => {
+    await updateNote({ id, content })
+  }, [updateNote])
+
+  const handleDeleteNote = useCallback(async (id: string) => {
+    await deleteNote(id)
+  }, [deleteNote])
+
+  if (notesError || usersError) {
     return (
-        <PermissionGate
-            requiredRoles={[UserRole.ADMIN, UserRole.AGENT]}
-            fallback={null}
-        >
-            <ErrorBoundary>
-                <div className={className}>
-                    {error && (
-                        <Alert variant="destructive" className="mb-4">
-                            {error}
-                        </Alert>
-                    )}
-
-                    {!readOnly && (
-                        <NoteForm
-                            onSubmit={handleCreateNote}
-                            users={users || []}
-                            currentUserRole={userRole}
-                            isLoading={createNote.isPending}
-                            className="mb-4"
-                        />
-                    )}
-
-                    <NoteList
-                        notes={notes || []}
-                        currentUserId={userId}
-                        onUpdate={!readOnly ? handleUpdateNote : undefined}
-                        onDelete={!readOnly ? handleDeleteNote : undefined}
-                        isUpdating={updateNote.isPending}
-                        isDeleting={deleteNote.isPending}
-                    />
-                </div>
-            </ErrorBoundary>
-        </PermissionGate>
+      <div className="text-red-500">
+        Error loading notes or users
+      </div>
     )
+  }
+
+  const isLoading = notesLoading || usersLoading
+
+  return (
+    <div className={className}>
+      {isLoading && <LoadingOverlay />}
+      {!readOnly && (
+        <NoteForm
+          onSubmit={handleCreateNote}
+          users={users || []}
+          currentUserRole={userRole}
+          isLoading={isCreating}
+          className="mb-4"
+        />
+      )}
+      <NoteList
+        notes={notes || []}
+        currentUserId={userId}
+        onUpdate={!readOnly ? handleUpdateNote : undefined}
+        onDelete={!readOnly ? handleDeleteNote : undefined}
+        isUpdating={isUpdating}
+        isDeleting={isDeleting}
+      />
+    </div>
+  )
 } 

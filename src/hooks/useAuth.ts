@@ -3,6 +3,7 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useEffect, useState } from 'react'
 import type { User } from '@/lib/types'
+import { UserRole } from '@/lib/types'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -25,7 +26,7 @@ export function useAuth() {
         const appUser: User = {
           id: session.user.id,
           email: session.user.email || '',
-          role: session.user.user_metadata.role || 'USER',
+          role: session.user.user_metadata.role || UserRole.USER,
           created_at: session.user.created_at,
         }
         setUser(appUser)
@@ -44,7 +45,7 @@ export function useAuth() {
         const appUser: User = {
           id: session.user.id,
           email: session.user.email || '',
-          role: session.user.user_metadata.role || 'USER',
+          role: session.user.user_metadata.role || UserRole.USER,
           created_at: session.user.created_at,
         }
         setUser(appUser)

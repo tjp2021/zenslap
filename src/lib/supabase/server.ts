@@ -1,11 +1,12 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import type { Database } from '@/types/supabase'
+import { cookies } from 'next/headers'
 
-// For use in API routes only
-export async function createServerClient() {
-  const cookieStore = await cookies()
-  return createRouteHandlerClient<Database>({ 
-    cookies: async () => cookieStore 
-  })
-} 
+// For use in API routes and server components only
+export function createServerClient() {
+  const cookieStore = cookies()
+  return createRouteHandlerClient<Database>({ cookies: () => cookieStore })
+}
+
+// Re-export Database type for convenience
+export type { Database } 
