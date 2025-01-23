@@ -47,6 +47,7 @@ export interface Database {
           created_at: string
           created_by: string
           updated_at: string
+          mentions?: string[]
         }
         Insert: Omit<Tables['internal_notes']['Row'], 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Tables['internal_notes']['Row']>

@@ -6,20 +6,29 @@ import { NoteForm } from './NoteForm'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { Alert } from '@/components/ui/alert'
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay'
+import { UserRole } from '@/lib/types'
+import { PermissionGate } from '@/components/auth/PermissionGate'
 
 interface InternalNotesProps {
     ticketId: string
     userId: string
+    userRole: UserRole
     readOnly?: boolean
     className?: string
 }
 
-export function InternalNotes({ ticketId, userId, readOnly = false, className }: InternalNotesProps) {
+export function InternalNotes({ 
+    ticketId, 
+    userId, 
+    userRole,
+    readOnly = false, 
+    className 
+}: InternalNotesProps) {
     const [error, setError] = useState<string | null>(null)
     const queryClient = useQueryClient()
 
     // Fetch notes
-    const { data: notes, isLoading } = useQuery({
+    const { data: notes, isLoading: notesLoading } = useQuery({
         queryKey: ['internal-notes', ticketId],
         queryFn: async () => {
             const result = await internalNotes.getByTicketId(ticketId)
@@ -28,12 +37,23 @@ export function InternalNotes({ ticketId, userId, readOnly = false, className }:
         }
     })
 
+    // Fetch mentionable users (admin and agents)
+    const { data: users, isLoading: usersLoading } = useQuery({
+        queryKey: ['mentionable-users'],
+        queryFn: async () => {
+            const result = await fetch('/api/users/mentionable')
+            if (!result.ok) throw new Error('Failed to fetch mentionable users')
+            return result.json()
+        }
+    })
+
     // Create note mutation
     const createNote = useMutation({
-        mutationFn: async (content: string) => {
+        mutationFn: async ({ content, mentions }: { content: string; mentions: string[] }) => {
             const result = await internalNotes.create({
                 ticket_id: ticketId,
-                content
+                content,
+                mentions
             }, userId)
             if (result.error) throw result.error
             return result.data
@@ -79,8 +99,8 @@ export function InternalNotes({ ticketId, userId, readOnly = false, className }:
         }
     })
 
-    const handleCreateNote = useCallback(async (content: string) => {
-        await createNote.mutateAsync(content)
+    const handleCreateNote = useCallback(async (content: string, mentions: string[]) => {
+        await createNote.mutateAsync({ content, mentions })
     }, [createNote])
 
     const handleUpdateNote = useCallback(async (id: string, content: string) => {
@@ -91,36 +111,43 @@ export function InternalNotes({ ticketId, userId, readOnly = false, className }:
         await deleteNote.mutateAsync(id)
     }, [deleteNote])
 
-    if (isLoading) {
+    if (notesLoading || usersLoading) {
         return <LoadingOverlay />
     }
 
     return (
-        <ErrorBoundary>
-            <div className={className}>
-                {error && (
-                    <Alert variant="destructive" className="mb-4">
-                        {error}
-                    </Alert>
-                )}
+        <PermissionGate
+            requiredRoles={[UserRole.ADMIN, UserRole.AGENT]}
+            fallback={null}
+        >
+            <ErrorBoundary>
+                <div className={className}>
+                    {error && (
+                        <Alert variant="destructive" className="mb-4">
+                            {error}
+                        </Alert>
+                    )}
 
-                {!readOnly && (
-                    <NoteForm
-                        onSubmit={handleCreateNote}
-                        isLoading={createNote.isPending}
-                        className="mb-4"
+                    {!readOnly && (
+                        <NoteForm
+                            onSubmit={handleCreateNote}
+                            users={users || []}
+                            currentUserRole={userRole}
+                            isLoading={createNote.isPending}
+                            className="mb-4"
+                        />
+                    )}
+
+                    <NoteList
+                        notes={notes || []}
+                        currentUserId={userId}
+                        onUpdate={!readOnly ? handleUpdateNote : undefined}
+                        onDelete={!readOnly ? handleDeleteNote : undefined}
+                        isUpdating={updateNote.isPending}
+                        isDeleting={deleteNote.isPending}
                     />
-                )}
-
-                <NoteList
-                    notes={notes || []}
-                    currentUserId={userId}
-                    onUpdate={!readOnly ? handleUpdateNote : undefined}
-                    onDelete={!readOnly ? handleDeleteNote : undefined}
-                    isUpdating={updateNote.isPending}
-                    isDeleting={deleteNote.isPending}
-                />
-            </div>
-        </ErrorBoundary>
+                </div>
+            </ErrorBoundary>
+        </PermissionGate>
     )
 } 

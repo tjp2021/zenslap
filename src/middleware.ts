@@ -8,64 +8,85 @@ import { verifyUserRole } from './lib/auth/verify-role'
 const ADMIN_ROUTES = ['/admin', '/settings']
 const AGENT_ROUTES = ['/queue', '/reports']
 const AUTHENTICATED_ROUTES = ['/tickets', '/profile']
-const PUBLIC_ROUTES = ['/', '/about', '/contact'] // Add any other public routes here
+const PUBLIC_ROUTES = ['/', '/about', '/contact', '/unauthorized'] // Add any other public routes here
+const AUTH_ROUTES = ['/auth/login', '/auth/signup', '/auth/forgot-password']
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
   const pathname = req.nextUrl.pathname
+  
+  console.log('🔍 Middleware - Start', { 
+    pathname,
+    url: req.url,
+    method: req.method
+  })
 
-  // Allow public routes
-  if (PUBLIC_ROUTES.some(route => pathname === route)) {
-    return res
-  }
-
+  // Check session status
   const {
     data: { session },
   } = await supabase.auth.getSession()
+  
+  console.log('🔑 Middleware - Session Check', { 
+    hasSession: !!session,
+    userId: session?.user?.id,
+    email: session?.user?.email
+  })
 
-  // Auth routes - redirect to /tickets if already logged in
-  if (pathname.startsWith('/auth')) {
+  // 1. Allow public routes without any checks
+  if (PUBLIC_ROUTES.some(route => pathname === route)) {
+    console.log('📢 Middleware - Public Route Access', { pathname })
+    return res
+  }
+
+  // 2. Special handling for auth callback
+  if (pathname === '/auth/callback') {
+    console.log('🎯 Middleware - Auth Callback Detected', { 
+      pathname,
+      hasCode: req.nextUrl.searchParams.has('code'),
+      code: req.nextUrl.searchParams.get('code')?.substring(0, 8) + '...' // Log first 8 chars for debugging
+    })
+    return res
+  }
+
+  // 3. Handle other auth routes (login, signup, etc.)
+  if (AUTH_ROUTES.includes(pathname)) {
+    console.log('🔒 Middleware - Auth Route', { pathname, hasSession: !!session })
+    // If logged in, redirect to tickets
     if (session) {
-      const redirectUrl = new URL('/tickets', req.url)
-      return NextResponse.redirect(redirectUrl)
+      console.log('↪️ Middleware - Redirecting authenticated user from auth route to /tickets')
+      return NextResponse.redirect(new URL('/tickets', req.url))
     }
     return res
   }
 
-  // Protected routes - redirect to /auth/login if not logged in
-  if (!session && !pathname.startsWith('/auth')) {
-    const redirectUrl = new URL('/auth/login', req.url)
-    return NextResponse.redirect(redirectUrl)
+  // 4. All other routes require authentication
+  if (!session) {
+    console.log('⛔ Middleware - No Session, Redirecting to login', { pathname })
+    return NextResponse.redirect(new URL('/auth/login', req.url))
   }
 
-  // For authenticated routes, we only need to verify session exists
-  if (AUTHENTICATED_ROUTES.some(route => pathname.startsWith(route))) {
-    if (!session) {
-      return NextResponse.redirect(new URL('/auth/login', req.url))
-    }
-    return res
-  }
+  // 5. Role-based route protection
+  const userRole = await verifyUserRole(session.user.id, req, res)
+  console.log('👤 Middleware - Role Check', { pathname, userRole })
 
-  // Only verify roles for admin/agent routes if we have a session
-  if (session) {
-    const userRole = await verifyUserRole(session.user.id)
-
-    // Admin routes protection
-    if (ADMIN_ROUTES.some(route => pathname.startsWith(route))) {
-      if (userRole !== UserRole.ADMIN) {
-        return NextResponse.redirect(new URL('/unauthorized', req.url))
-      }
-    }
-
-    // Agent routes protection
-    if (AGENT_ROUTES.some(route => pathname.startsWith(route))) {
-      if (userRole !== UserRole.ADMIN && userRole !== UserRole.AGENT) {
-        return NextResponse.redirect(new URL('/unauthorized', req.url))
-      }
+  // Admin routes protection
+  if (ADMIN_ROUTES.some(route => pathname.startsWith(route))) {
+    if (userRole !== UserRole.ADMIN) {
+      console.log('🚫 Middleware - Unauthorized Admin Route Access', { pathname, userRole })
+      return NextResponse.redirect(new URL('/unauthorized', req.url))
     }
   }
 
+  // Agent routes protection
+  if (AGENT_ROUTES.some(route => pathname.startsWith(route))) {
+    if (userRole !== UserRole.ADMIN && userRole !== UserRole.AGENT) {
+      console.log('🚫 Middleware - Unauthorized Agent Route Access', { pathname, userRole })
+      return NextResponse.redirect(new URL('/unauthorized', req.url))
+    }
+  }
+
+  console.log('✅ Middleware - Access Granted', { pathname, userRole })
   return res
 }
 

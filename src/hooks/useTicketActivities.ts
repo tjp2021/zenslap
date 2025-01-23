@@ -62,8 +62,9 @@ export function useTicketActivities(ticketId: string) {
       return
     }
 
-    const newActivity: CreateActivityDTO = {
+    const newActivity: CreateActivityDTO & { actor_id: string } = {
       ticket_id: ticketId,
+      actor_id: user.id,
       activity_type: 'comment' as ActivityType,
       content: {
         text: content,

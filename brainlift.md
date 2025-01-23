@@ -482,3 +482,95 @@ render → stable supabase → stable loadTickets → useEffect (only on user.id
 4. Effects should have clear, minimal dependencies
 
 This case study demonstrates how seemingly simple React patterns can create complex dependency chains, and how methodical debugging and optimization can resolve them.
+
+## Authentication Flow Analysis
+
+### Problem/Feature Overview
+- Initial Requirements: Implement proper authentication flow with redirects
+- Key Challenges: Redirect not happening after successful sign-in
+- Success Criteria: Seamless sign-in to callback to tickets flow
+
+### Solution Attempts
+#### Attempt #1: Middleware-based Solution
+- Approach: Added middleware handling for callback route
+- Implementation: Added logging and explicit handling
+- Outcome: Failed - never reached callback URL
+- Learnings: Problem was earlier in the flow
+
+#### Attempt #2: Callback Route Enhancement
+- Approach: Added session verification and logging
+- Implementation: Enhanced error handling in callback
+- Outcome: Failed - route was fine but unreachable
+- Learnings: Callback implementation wasn't the issue
+
+#### Attempt #3: Login Page Session Check
+- Approach: Added session checks on login page
+- Implementation: useEffect for session verification
+- Outcome: Failed - only helped with existing sessions
+- Learnings: Initial sign-in flow needed attention
+
+### Final Solution
+#### Implementation Details
+```typescript
+const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+  console.log('🔄 AuthUI - Auth State Change:', {
+    event,
+    hasSession: !!session,
+    userId: session?.user?.id,
+    email: session?.user?.email,
+    timestamp: new Date().toISOString()
+  })
+
+  if (event === 'SIGNED_IN' && session) {
+    console.log('↪️ AuthUI - Handling SIGNED_IN, redirecting to callback')
+    window.location.href = `${window.location.origin}/auth/callback`
+  }
+})
+```
+
+#### Why It Works
+1. Explicit handling of SIGNED_IN event
+2. Direct control over redirect timing
+3. Hard redirect using window.location.href
+4. Proper flow through callback route
+
+#### Key Components
+1. Event listener for auth state changes
+2. Immediate redirect after sign-in
+3. Comprehensive logging
+4. Proper session exchange in callback
+
+### Key Lessons
+#### Technical Insights
+- Don't trust built-in redirect mechanisms blindly
+- Take control of critical flow points
+- Use hard redirects when needed
+- Watch auth state changes explicitly
+
+#### Process Improvements
+- Add comprehensive logging
+- Track state changes
+- Follow the entire flow
+- Test each step independently
+
+#### Best Practices
+- Explicit over implicit
+- Control critical transitions
+- Log extensively during debugging
+- Handle auth events directly
+
+#### Anti-Patterns to Avoid
+- Relying solely on built-in redirects
+- Missing auth state changes
+- Insufficient logging
+- Multiple redirect mechanisms
+
+### Complete Flow
+1. User enters credentials and clicks sign in
+2. Supabase auth succeeds
+3. SIGNED_IN event fires
+4. Event handler catches immediately
+5. Forces redirect to /auth/callback
+6. Callback route exchanges code for session
+7. Sets up proper auth state
+8. Redirects to /tickets

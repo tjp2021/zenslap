@@ -31,14 +31,16 @@ export const internalNoteSchema = z.object({
         .max(10000, 'Note content cannot exceed 10000 characters'),
     created_by: uuidSchema,
     created_at: timestampSchema,
-    updated_at: timestampSchema
+    updated_at: timestampSchema,
+    mentions: z.array(uuidSchema).optional()
 })
 
 export const createInternalNoteSchema = z.object({
     ticket_id: uuidSchema,
     content: z.string()
         .min(1, 'Note content is required')
-        .max(10000, 'Note content cannot exceed 10000 characters')
+        .max(10000, 'Note content cannot exceed 10000 characters'),
+    mentions: z.array(uuidSchema).optional()
 })
 
 // Ticket message validation schemas

@@ -1,25 +1,49 @@
-import { createServerClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/supabase'
+import * as dotenv from 'dotenv'
+import path from 'path'
 
-async function seedTestUser() {
-  const supabase = await createServerClient()
+// Load environment variables from .env.local
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') })
 
-  const { data, error } = await supabase.auth.signUp({
-    email: 'test@example.com',
-    password: 'password123',
-    options: {
-      data: {
-        role: 'admin'
-      }
-    }
-  })
+async function seedUsers() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (error) {
-    console.error('Error creating test user:', error)
-    return
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase credentials in .env.local')
   }
 
-  console.log('Test user created:', data)
+  // Create admin client with service role key
+  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
+
+  // Create admin user
+  const { data: adminData, error: adminError } = await supabase.auth.admin.createUser({
+    email: 'admin6@example.com',
+    password: 'password123',
+    email_confirm: true,
+    app_metadata: { role: 'admin' }
+  })
+
+  if (adminError) {
+    console.error('Error creating admin user:', adminError)
+  } else {
+    console.log('Admin user created:', adminData)
+  }
+
+  // Create agent user
+  const { data: agentData, error: agentError } = await supabase.auth.admin.createUser({
+    email: 'agent5@example.com',
+    password: 'password123',
+    email_confirm: true,
+    app_metadata: { role: 'agent' }
+  })
+
+  if (agentError) {
+    console.error('Error creating agent user:', agentError)
+  } else {
+    console.log('Agent user created:', agentData)
+  }
 }
 
-seedTestUser() 
+seedUsers().catch(console.error) 

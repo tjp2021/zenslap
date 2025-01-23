@@ -42,6 +42,7 @@ export interface InternalNote {
 	created_by: string
 	created_at: string
 	updated_at: string
+	mentions?: string[] // Array of user IDs who are mentioned
 }
 
 // Conversation message interface
