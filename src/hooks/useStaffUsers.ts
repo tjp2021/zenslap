@@ -20,10 +20,19 @@ export function useStaffUsers() {
       setIsLoading(true)
       setError(null)
 
+      // First get current user's role
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      
+      if (!session) {
+        throw new Error('No session')
+      }
+
+      // Get all users - the RLS policy will handle filtering
       const { data, error: fetchError } = await supabase
         .from('users_secure')
         .select('id, email, role')
-        .in('role', ['ADMIN', 'AGENT'])
+        .in('role', ['admin', 'agent']) // Only get staff users
         .order('email')
 
       console.log('🔥 STAFF USERS HOOK: Raw query result:', { 

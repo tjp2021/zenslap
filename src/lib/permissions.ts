@@ -38,9 +38,8 @@ const permissionRules: Record<TicketAction, (user: User | null, ticket: Ticket) 
     conditions.isTicketOpen(user, ticket) &&
     (conditions.isAdmin(user) || conditions.isAgent(user)),
   
-  [TicketActions.EDIT_STATUS]: (user, ticket) =>
-    conditions.isTicketOpen(user, ticket) &&
-    (conditions.isAdmin(user) || conditions.isAgent(user)),
+  [TicketActions.EDIT_STATUS]: (user) =>
+    conditions.isAdmin(user) || conditions.isAgent(user),
   
   [TicketActions.EDIT_PRIORITY]: (user, ticket) =>
     conditions.isTicketOpen(user, ticket) &&

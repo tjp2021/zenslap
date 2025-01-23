@@ -18,10 +18,10 @@ BEGIN
 END;
 $$;
 
--- Create policy using the security definer function
+-- Create policy that gives FULL ACCESS to admins/agents
 CREATE POLICY staff_view_all ON public.users_secure
 FOR SELECT TO authenticated
 USING (
-  auth.uid() = id  -- Allow users to see their own profile
-  OR auth.check_user_role()  -- Use security definer function for role check
+  auth.check_user_role() -- If you're admin/agent, you see EVERYTHING
+  OR auth.uid() = id     -- Regular users only see themselves
 ); 

@@ -612,18 +612,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
         {/* Description */}
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-gray-700">Description</h2>
-          {isEditing ? (
-            <Textarea
-              name="description"
-              defaultValue={ticket.description}
-              disabled={!canEditTicket('description')}
-              className="min-h-[200px]"
-              placeholder="Ticket description"
-              onChange={() => handleFieldChange('description')}
-            />
-          ) : (
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
-          )}
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
         </div>
 
         {/* Error Display */}
