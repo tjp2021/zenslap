@@ -1,13 +1,17 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import type { Database } from '@/types/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay'
 import { NoteList } from './NoteList'
 import { NoteForm } from './NoteForm'
 import { UserRole } from '@/lib/types'
+import type { z } from 'zod'
+import type { createInternalNoteSchema } from '@/lib/validation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 
 interface User {
   id: string
@@ -23,9 +27,12 @@ interface InternalNotesProps {
   className?: string
 }
 
+type CreateNoteInput = z.infer<typeof createInternalNoteSchema>
+
 export function InternalNotes({ ticketId, userId, userRole, readOnly = false, className }: InternalNotesProps) {
-  const supabase = createClientComponentClient<Database>()
   const queryClient = useQueryClient()
+  const supabase = createClientComponentClient<Database>()
+  const isStaff = userRole === UserRole.ADMIN || userRole === UserRole.AGENT
 
   // Debug mount/unmount
   useEffect(() => {
@@ -48,16 +55,9 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
     queryKey: ['notes', ticketId],
     queryFn: async () => {
       console.log('📥 [DATA] Fetching notes:', { ticketId })
-      const { data, error } = await supabase
-        .from('internal_notes')
-        .select('*')
-        .eq('ticket_id', ticketId)
-        .order('created_at', { ascending: true })
-
-      if (error) {
-        console.error('❌ [ERROR] Failed to fetch notes:', error)
-        throw error
-      }
+      const response = await fetch(`/api/internal-notes?ticketId=${ticketId}`)
+      if (!response.ok) throw new Error('Failed to fetch notes')
+      const data = await response.json()
       console.log(`✅ [DATA] Fetched ${data?.length || 0} notes`)
       return data || []
     }
@@ -86,32 +86,30 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
   })
 
   // Create note mutation
-  const { mutate: createNote, isPending: isCreating } = useMutation({
-    mutationFn: async ({ content, mentions }: { content: string, mentions?: string[] }) => {
-      console.log('📝 [MUTATION] Creating note:', { content, mentions })
-      const { data, error } = await supabase
-        .from('internal_notes')
-        .insert([
-          {
-            ticket_id: ticketId,
-            content,
-            created_by: userId,
-            mentions
-          }
-        ])
-        .select()
-        .single()
-
-      if (error) {
-        console.error('❌ [ERROR] Failed to create note:', error)
-        throw error
+  const { mutateAsync: createNote } = useMutation({
+    mutationFn: async (data: CreateNoteInput) => {
+      console.log('📤 [CLIENT] Creating note:', data)
+      const response = await fetch('/api/internal-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('❌ [CLIENT] Create note failed:', errorData)
+        throw new Error(errorData.error || 'Failed to create note')
       }
-      console.log('✅ [MUTATION] Note created:', data)
-      return data
+      
+      const result = await response.json()
+      console.log('✅ [CLIENT] Note created:', result)
+      return result
     },
     onSuccess: () => {
-      console.log('🔄 [CACHE] Invalidating notes cache')
       queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
+    },
+    onError: (error) => {
+      console.error('❌ [CLIENT] Mutation error:', error)
     }
   })
 
@@ -150,8 +148,12 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
 
   const handleCreateNote = useCallback(async (content: string, mentions?: string[]) => {
     console.log('🎯 [ACTION] handleCreateNote called:', { content, mentions })
-    await createNote({ content, mentions })
-  }, [createNote])
+    await createNote({ 
+      ticket_id: ticketId,
+      content, 
+      mentions
+    })
+  }, [createNote, ticketId])
 
   const handleUpdateNote = useCallback(async (id: string, content: string) => {
     await updateNote({ id, content })
@@ -178,6 +180,12 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
     timestamp: new Date().toISOString()
   })
 
+  // Regular user view - no access
+  if (!isStaff) {
+    return null
+  }
+
+  // Staff view - show notes with tabs
   return (
     <div className={className}>
       {isLoading && <LoadingOverlay />}
@@ -186,7 +194,7 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
           onSubmit={handleCreateNote}
           users={users || []}
           currentUserRole={userRole}
-          isLoading={isCreating}
+          isLoading={isUpdating}
           className="mb-4"
         />
       )}

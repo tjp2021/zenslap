@@ -21,52 +21,67 @@ export const MentionSuggestion = memo(function MentionSuggestion({
     currentUserRole,
     onSelect
 }: MentionSuggestionProps) {
-    // Defensive checks
-    if (!users?.length) {
-        console.log('⚠️ MentionSuggestion: No users provided')
-        return null
-    }
-
-    if (!currentUserRole) {
-        console.log('⚠️ MentionSuggestion: No user role provided')
-        return null
-    }
-
-    // Only show for ADMIN and AGENT
-    if (currentUserRole !== UserRole.ADMIN && currentUserRole !== UserRole.AGENT) {
-        console.log('⚠️ MentionSuggestion: Unauthorized role:', currentUserRole)
-        return null
-    }
-
-    // Filter users by role and query
-    const filteredUsers = users.filter(user => 
-        (user.role === UserRole.ADMIN || user.role === UserRole.AGENT) &&
-        (!query || user.email.toLowerCase().includes(query.toLowerCase()))
-    )
-
-    console.log('👥 MentionSuggestion filtered:', {
-        total: users.length,
-        filtered: filteredUsers.length,
-        query
+    console.log('🎯 [@DEBUG] MentionSuggestion input:', {
+        query,
+        usersCount: users.length,
+        users: users.map(u => ({ email: u.email, role: u.role }))
     })
 
-    if (filteredUsers.length === 0) return null
+    // Filter users by role first
+    const roleFilteredUsers = users.filter(user => {
+        // Convert roles to uppercase for comparison
+        const userRole = user.role.toUpperCase()
+        return userRole === 'ADMIN' || userRole === 'AGENT'
+    })
 
+    console.log('👥 [@DEBUG] Role filtered:', {
+        before: users.length,
+        after: roleFilteredUsers.length,
+        roles: roleFilteredUsers.map(u => u.role)
+    })
+
+    // Then filter by email if we have a query
+    const filteredUsers = roleFilteredUsers.filter(user => {
+        const normalizedQuery = query.toLowerCase()
+        const normalizedEmail = user.email.toLowerCase()
+        
+        // Show all users if query is empty or just @
+        if (!query || query === '@') return true
+        
+        // Simple substring match
+        return normalizedEmail.includes(normalizedQuery)
+    })
+
+    console.log('✨ [@DEBUG] Email filtered:', {
+        before: roleFilteredUsers.length,
+        after: filteredUsers.length,
+        query,
+        matches: filteredUsers.map(u => u.email)
+    })
+
+    // Always render the container, even if no matches
     return (
-        <div className="border rounded-lg shadow-md bg-white min-w-[200px]">
+        <div className="border rounded-lg shadow-lg bg-white min-w-[200px] relative" style={{ backgroundColor: 'white' }}>
             <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
-                {filteredUsers.map(user => (
-                    <button
-                        key={user.id}
-                        onClick={() => onSelect(user)}
-                        className="w-full text-left px-3 py-2 rounded hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
-                    >
-                        <div className="flex flex-col">
-                            <span className="text-sm font-medium">{user.email}</span>
-                            <span className="text-xs text-gray-500 capitalize">{user.role.toLowerCase()}</span>
-                        </div>
-                    </button>
-                ))}
+                {filteredUsers.length > 0 ? (
+                    filteredUsers.map(user => (
+                        <button
+                            key={user.id}
+                            onClick={() => onSelect(user)}
+                            className="w-full text-left px-3 py-2 rounded hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                            style={{ display: 'block' }}
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-black">{user.email}</span>
+                                <span className="text-xs text-gray-500 capitalize">{user.role.toLowerCase()}</span>
+                            </div>
+                        </button>
+                    ))
+                ) : (
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                        No matching users
+                    </div>
+                )}
             </div>
         </div>
     )

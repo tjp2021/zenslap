@@ -47,11 +47,13 @@ export interface TicketActivity {
   activity_type: ActivityType
   content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
   created_at: string
+  is_internal: boolean
 }
 
 // DTO for creating a new activity
 export interface CreateActivityDTO {
   ticket_id: string
+  actor_id: string
   activity_type: ActivityType
   content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
 } 

@@ -5,11 +5,14 @@ import useSWR from 'swr'
 import { TicketActivity, CreateActivityDTO, Actor, ActivityType, CommentContent } from '@/lib/types/activities'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
+import { useRoleAccess } from '@/hooks/useRoleAccess'
 
 export function useTicketActivities(ticketId: string) {
   const supabase = createClient()
   const { toast } = useToast()
   const { user } = useAuth()
+  const { isAdmin, isAgent } = useRoleAccess()
+  const isStaff = isAdmin || isAgent
 
   const {
     data: activities = [],
@@ -19,15 +22,43 @@ export function useTicketActivities(ticketId: string) {
   } = useSWR<TicketActivity[]>(
     user && ticketId ? `ticket-activities-${ticketId}` : null,
     async () => {
-      // First get the activities
-      const { data: activities, error: activitiesError } = await supabase
+      // First get the activities - no JSON filtering in query
+      const query = supabase
         .from('ticket_activities')
         .select('*')
         .eq('ticket_id', ticketId)
+        .eq('activity_type', 'comment')
         .order('created_at', { ascending: false })
 
+      // Debug the query parameters
+      console.log('🔍 Query Debug:', {
+        isStaff,
+        ticketId,
+        isAdmin,
+        isAgent
+      })
+
+      const { data: activities, error: activitiesError } = await query
+
+      // Debug the raw results
+      console.log('🔍 Raw Query Results:', {
+        activities,
+        error: activitiesError
+      })
+
       if (activitiesError) throw activitiesError
-      
+
+      // Filter internal notes if needed
+      const filteredActivities = isStaff 
+        ? activities 
+        : activities?.filter(activity => {
+            const content = activity.content as CommentContent
+            return !content.is_internal
+          })
+
+      // Debug filtered results
+      console.log('🔍 Filtered Activities:', filteredActivities)
+
       // Then get the user data for each unique actor_id
       const actorIds = [...new Set(activities?.map(a => a.actor_id) || [])]
       const { data: actors, error: actorsError } = await supabase
@@ -37,8 +68,11 @@ export function useTicketActivities(ticketId: string) {
 
       if (actorsError) throw actorsError
 
+      // Debug log
+      console.log('🔍 Actors from DB:', actors)
+
       // Combine the data
-      return activities?.map(activity => ({
+      const combinedActivities = filteredActivities?.map(activity => ({
         ...activity,
         actor: actors?.find(actor => actor.id === activity.actor_id) || {
           id: activity.actor_id,
@@ -46,6 +80,11 @@ export function useTicketActivities(ticketId: string) {
           role: 'unknown'
         }
       })) || []
+
+      // Debug log
+      console.log('🔍 Combined Activities:', combinedActivities)
+
+      return combinedActivities
     },
     {
       revalidateOnFocus: false,
@@ -62,13 +101,13 @@ export function useTicketActivities(ticketId: string) {
       return
     }
 
-    const newActivity: CreateActivityDTO & { actor_id: string } = {
+    const newActivity: CreateActivityDTO = {
       ticket_id: ticketId,
       actor_id: user.id,
       activity_type: 'comment' as ActivityType,
       content: {
         text: content,
-        is_internal: isInternal,
+        is_internal: isInternal
       } as CommentContent,
     }
 

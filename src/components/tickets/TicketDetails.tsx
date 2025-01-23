@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -36,8 +36,9 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import { Separator } from "@/components/ui/separator"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
-import { InternalNotes } from './InternalNotes'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { cn } from '@/lib/utils'
+import { CommentHistory } from './CommentHistory'
 
 interface TicketHistory {
   id: string
@@ -51,9 +52,6 @@ interface TicketDetailsProps {
   id: string
 }
 
-// Create a client
-const queryClient = new QueryClient()
-
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
   const { user } = useAuth()
@@ -64,10 +62,10 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [deleting, setDeleting] = useState(false)
   const [history, setHistory] = useState<TicketHistory[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
+  const { hasRole } = useRoleAccess()
+  const isStaff = hasRole([UserRole.ADMIN, UserRole.AGENT] as UserRole[])
 
   const loadHistory = useCallback(async () => {
-    setLoadingHistory(true)
     try {
       const { data, error: fetchError } = await supabase
         .from('ticket_history')
@@ -82,10 +80,12 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       }
     } catch {
       console.error('Failed to load ticket history')
-    } finally {
-      setLoadingHistory(false)
     }
   }, [supabase, id])
+
+  useEffect(() => {
+    loadHistory()
+  }, [loadHistory])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -210,14 +210,21 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="space-y-8">
+    <div className={cn(
+      "grid gap-6",
+      isStaff ? "grid-cols-3" : "grid-cols-1"
+    )}>
+      <div className={isStaff ? "col-span-2" : "col-span-1"}>
         <Card className="p-6">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                {/* ... existing code ... */}
+                <h1 className="text-2xl font-semibold">{ticket.title}</h1>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Clock className="h-4 w-4" />
+                  <span>Created {formatDistanceToNow(new Date(ticket.created_at))} ago</span>
+                </div>
               </div>
               {canEditTicket() && !isEditing && (
                 <Button
@@ -230,121 +237,97 @@ export function TicketDetails({ id }: TicketDetailsProps) {
               )}
             </div>
 
-            {/* Main Content */}
-            <div className="grid grid-cols-3 gap-6">
-              <div className="col-span-2 space-y-6">
-                {/* Description */}
-                <div className="space-y-2">
-                  <h2 className="text-sm font-medium text-gray-700">Description</h2>
-                  {isEditing ? (
-                    <Textarea
-                      name="description"
-                      defaultValue={ticket.description}
-                      disabled={!canEditTicket('description')}
-                      className="min-h-[200px]"
-                      placeholder="Ticket description"
-                      onChange={(e) => {
-                        if (canEditTicket('description')) {
-                          setValidationErrors({ ...validationErrors, description: e.target.value })
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="prose prose-sm max-w-none">
-                      {ticket.description || 'No description provided.'}
-                    </div>
-                  )}
-                </div>
+            {/* Description */}
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-700">Description</h2>
+              {isEditing ? (
+                <Textarea
+                  name="description"
+                  defaultValue={ticket.description}
+                  disabled={!canEditTicket('description')}
+                  className="min-h-[200px]"
+                  placeholder="Ticket description"
+                  onChange={(e) => {
+                    if (canEditTicket('description')) {
+                      setValidationErrors({ ...validationErrors, description: e.target.value })
+                    }
+                  }}
+                />
+              ) : (
+                <p className="text-gray-600 whitespace-pre-wrap">{ticket.description}</p>
+              )}
+            </div>
+
+            {/* Status and Priority */}
+            <div className="flex items-center gap-4">
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium text-gray-700">Status</h2>
+                {isEditing ? (
+                  <Select
+                    name="status"
+                    defaultValue={ticket.status}
+                    disabled={!canEditTicket('status')}
+                    onValueChange={(value) => {
+                      if (canEditTicket('status')) {
+                        setValidationErrors({ ...validationErrors, status: value })
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge className={getStatusColor(ticket.status)}>
+                    {ticket.status}
+                  </Badge>
+                )}
               </div>
 
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Status */}
-                <div className="space-y-2">
-                  <h2 className="text-sm font-medium text-gray-700">Status</h2>
-                  {isEditing ? (
-                    <Select
-                      name="status"
-                      defaultValue={ticket.status}
-                      disabled={!canEditTicket('status')}
-                      onValueChange={(value) => {
-                        if (canEditTicket('status')) {
-                          setValidationErrors({ ...validationErrors, status: value })
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="open">Open</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="resolved">Resolved</SelectItem>
-                        <SelectItem value="closed">Closed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={`${getStatusColor(ticket.status)}`}>
-                      {ticket.status.replace('_', ' ')}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Priority */}
-                <div className="space-y-2">
-                  <h2 className="text-sm font-medium text-gray-700">Priority</h2>
-                  {isEditing ? (
-                    <Select
-                      name="priority"
-                      defaultValue={ticket.priority}
-                      disabled={!canEditTicket('priority')}
-                      onValueChange={(value) => {
-                        if (canEditTicket('priority')) {
-                          setValidationErrors({ ...validationErrors, priority: value })
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={`${getPriorityColor(ticket.priority)}`}>
-                      {ticket.priority}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Assignee */}
-                <div className="space-y-2">
-                  <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
-                  <div className="flex items-center space-x-2">
-                    <User className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      {ticket.assignee || 'Unassigned'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tags */}
-                {ticket.tags && ticket.tags.length > 0 && (
-                  <div className="space-y-2">
-                    <h2 className="text-sm font-medium text-gray-700">Tags</h2>
-                    <div className="flex flex-wrap gap-2">
-                      {ticket.tags.map((tag: string) => (
-                        <div key={tag} className="flex items-center space-x-1">
-                          <Tag className="h-3 w-3 text-gray-400" />
-                          <span className="text-sm text-gray-600">{tag}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              <div className="space-y-2">
+                <h2 className="text-sm font-medium text-gray-700">Priority</h2>
+                {isEditing ? (
+                  <Select
+                    name="priority"
+                    defaultValue={ticket.priority}
+                    disabled={!canEditTicket('priority')}
+                    onValueChange={(value) => {
+                      if (canEditTicket('priority')) {
+                        setValidationErrors({ ...validationErrors, priority: value })
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge className={getPriorityColor(ticket.priority)}>
+                    {ticket.priority}
+                  </Badge>
                 )}
+              </div>
+            </div>
+
+            {/* Assignee */}
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-500" />
+                <span className="text-gray-600">
+                  {ticket.assignee || 'Unassigned'}
+                </span>
               </div>
             </div>
 
@@ -380,19 +363,9 @@ export function TicketDetails({ id }: TicketDetailsProps) {
           </div>
         </Card>
 
-        {/* Internal Notes */}
-        {user && (
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Internal Notes</h2>
-            <InternalNotes
-              ticketId={id}
-              userId={user.id}
-              userRole={user.role}
-              className="mt-4"
-            />
-          </Card>
-        )}
+        {/* Comment History Section */}
+        {user && <CommentHistory ticketId={id} userId={user.id} />}
       </div>
-    </QueryClientProvider>
+    </div>
   )
 } 

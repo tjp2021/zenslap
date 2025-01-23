@@ -3,8 +3,9 @@ import { Button, Textarea } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { MentionSuggestion } from './MentionSuggestion'
 import { UserRole } from '@/lib/types'
-import { extractMentions } from '@/lib/utils/mentions'
+import { extractMentions, validateMentions } from '@/lib/utils/mentions'
 import getCaretCoordinates from 'textarea-caret'
+import { createPortal } from 'react-dom'
 
 interface User {
     id: string
@@ -26,43 +27,50 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
     const [cursorPosition, setCursorPosition] = useState<{ top: number; left: number } | null>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-    // Ensure we have users before allowing mentions
+    // Debug render conditions
+    useEffect(() => {
+        console.log('🔍 [@DEBUG] Mention state:', {
+            hasQuery: !!mentionQuery,
+            query: mentionQuery,
+            hasPosition: !!cursorPosition,
+            position: cursorPosition,
+            hasUsers: !!users?.length,
+            userCount: users?.length,
+            currentUserRole
+        })
+    }, [mentionQuery, cursorPosition, users, currentUserRole])
+
     const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newContent = e.target.value
         setContent(newContent)
 
-        // Don't process mentions if we don't have users
-        if (!users?.length) {
-            console.log('⚠️ No users available for mentions')
-            return
-        }
-
         const textarea = e.target
         const cursorPos = textarea.selectionStart
         const beforeCursor = newContent.slice(0, cursorPos)
-        const matches = beforeCursor.match(/@(\w*)$/)
+        
+        // Match @ followed by any valid email characters
+        const matches = beforeCursor.match(/@([\w.-]*)$/)
+
+        console.log('🔍 [@DEBUG] Content change:', {
+            content: beforeCursor.slice(-20),
+            matches: matches ? matches[1] : null,
+            cursorPos
+        })
 
         if (matches) {
             const rect = textarea.getBoundingClientRect()
             const coords = getCaretCoordinates(textarea, cursorPos)
             
-            // Adjust position based on scroll
             const top = rect.top + coords.top + window.scrollY
             const left = rect.left + coords.left + window.scrollX
 
-            console.log('📝 Mention triggered:', { 
-                query: matches[1],
-                availableUsers: users.length,
-                position: { top, left }
-            })
-
-            setCursorPosition({ top, left })
             setMentionQuery(matches[1])
+            setCursorPosition({ top, left })
         } else {
             setMentionQuery('')
             setCursorPosition(null)
         }
-    }, [users])
+    }, [])
 
     // Log when users become available
     useEffect(() => {
@@ -95,48 +103,59 @@ export function NoteForm({ onSubmit, users, currentUserRole, isLoading, classNam
         if (!content.trim() || isLoading) return
 
         try {
-            const mentions = extractMentions(content)
-            await onSubmit(content, mentions)
+            const emailMentions = extractMentions(content)
+            const userIdMentions = validateMentions(emailMentions, users)
+            await onSubmit(content, userIdMentions)
             setContent('')
         } catch (error) {
             console.error('Submit error:', error)
         }
-    }, [content, isLoading, onSubmit])
+    }, [content, isLoading, onSubmit, users])
+
+    // Render dropdown in a portal
+    const renderDropdown = () => {
+        if (!mentionQuery || !cursorPosition || !users?.length) return null
+
+        return createPortal(
+            <div
+                style={{
+                    position: 'absolute',
+                    top: `${cursorPosition.top + 20}px`,
+                    left: `${cursorPosition.left}px`,
+                    zIndex: 9999
+                }}
+                className="mention-dropdown"
+            >
+                <MentionSuggestion
+                    query={mentionQuery}
+                    users={users}
+                    currentUserRole={currentUserRole}
+                    onSelect={handleMentionSelect}
+                />
+            </div>,
+            document.body
+        )
+    }
 
     return (
-        <form onSubmit={handleSubmit} className={cn('space-y-4 relative', className)}>
-            <Textarea
-                ref={textareaRef}
-                value={content}
-                onChange={handleChange}
-                placeholder={users?.length ? "Add an internal note... Use @ to mention users" : "Loading users..."}
-                className="min-h-[100px] resize-none"
-                disabled={isLoading}
-            />
-            
-            {mentionQuery !== '' && cursorPosition && users?.length > 0 && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        top: cursorPosition.top + 24,
-                        left: cursorPosition.left,
-                        zIndex: 50
-                    }}
-                >
-                    <MentionSuggestion
-                        query={mentionQuery}
-                        users={users}
-                        currentUserRole={currentUserRole}
-                        onSelect={handleMentionSelect}
-                    />
+        <>
+            <form onSubmit={handleSubmit} className={cn('space-y-4 relative', className)}>
+                <Textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={handleChange}
+                    placeholder="Add an internal note... Use @ to mention users"
+                    className="min-h-[100px] resize-none"
+                    disabled={isLoading}
+                />
+                
+                <div className="flex justify-end">
+                    <Button type="submit" disabled={!content.trim() || isLoading}>
+                        {isLoading ? 'Adding...' : 'Add Note'}
+                    </Button>
                 </div>
-            )}
-
-            <div className="flex justify-end">
-                <Button type="submit" disabled={!content.trim() || isLoading}>
-                    {isLoading ? 'Adding...' : 'Add Note'}
-                </Button>
-            </div>
-        </form>
+            </form>
+            {renderDropdown()}
+        </>
     )
 } 
