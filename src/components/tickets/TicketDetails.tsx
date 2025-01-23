@@ -416,7 +416,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
             </div>
           </div>
           <div className="flex gap-2">
-            {!isEditing && canEditTicket() && (
+            {!isEditing && isStaff && (
               <Button
                 onClick={startEditing}
                 variant="outline"
@@ -645,11 +645,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   ])
 
   return (
-    <div className={cn(
-      "grid gap-6",
-      isStaff ? "grid-cols-3" : "grid-cols-1"
-    )}>
-      <div className={isStaff ? "col-span-2" : "col-span-1"}>
+    <div className="grid gap-6">
+      <div className="col-span-1">
         <Card className="p-6">
           {EditForm}
         </Card>

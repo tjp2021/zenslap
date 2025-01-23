@@ -33,9 +33,8 @@ const conditions = {
 const permissionRules: Record<TicketAction, (user: User | null, ticket: Ticket) => boolean> = {
   [TicketActions.DELETE]: (user) => conditions.isAdmin(user),
   
-  [TicketActions.EDIT]: (user, ticket) => 
+  [TicketActions.EDIT]: (user) => 
     conditions.isAuthenticated(user) &&
-    conditions.isTicketOpen(user, ticket) &&
     (conditions.isAdmin(user) || conditions.isAgent(user)),
   
   [TicketActions.EDIT_STATUS]: (user) =>
