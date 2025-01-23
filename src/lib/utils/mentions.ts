@@ -12,13 +12,24 @@ interface MentionUser {
  * @returns Array of mention strings (without the @ symbol)
  */
 export function extractMentions(content: string): string[] {
-    console.log('🔍 extractMentions - Content:', content)
+    console.log('🔍 [@DEBUG] Extracting mentions from:', content)
+    
+    // Match @email.com pattern
     const mentionRegex = /@([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g
     const matches = content.match(mentionRegex)
-    console.log('✨ extractMentions - Matches:', matches)
+    
+    console.log('✨ [@DEBUG] Mention matches:', {
+        pattern: mentionRegex.source,
+        matches,
+        rawMatches: matches ? [...matches] : []
+    })
+    
     if (!matches) return []
+    
+    // Remove @ symbol from matches
     const result = matches.map(match => match.slice(1))
-    console.log('✅ extractMentions - Result:', result)
+    
+    console.log('✅ [@DEBUG] Extracted mentions:', result)
     return result
 }
 
@@ -28,11 +39,21 @@ export function extractMentions(content: string): string[] {
  * @returns Array of users with admin or agent roles
  */
 export function filterMentionableUsers(users: MentionUser[]): MentionUser[] {
-    console.log('🔍 filterMentionableUsers - Input users:', users)
+    console.log('🔍 [@DEBUG] Filtering users:', {
+        total: users?.length,
+        roles: users?.map(u => u.role)
+    })
+    
     const filtered = users.filter(user => 
         user.role === UserRole.ADMIN || user.role === UserRole.AGENT
     )
-    console.log('✅ filterMentionableUsers - Filtered users:', filtered)
+    
+    console.log('✅ [@DEBUG] Filtered users:', {
+        before: users.length,
+        after: filtered.length,
+        roles: filtered.map(u => u.role)
+    })
+    
     return filtered
 }
 
@@ -43,16 +64,28 @@ export function filterMentionableUsers(users: MentionUser[]): MentionUser[] {
  * @returns Array of valid user IDs
  */
 export function validateMentions(mentions: string[], users: MentionUser[]): string[] {
-    console.log('🔍 validateMentions - Input mentions:', mentions)
-    console.log('🔍 validateMentions - Input users:', users)
+    console.log('🔍 [@DEBUG] Validating mentions:', {
+        mentions,
+        totalUsers: users.length
+    })
+    
     const mentionableUsers = filterMentionableUsers(users)
     const emailToId = new Map(mentionableUsers.map(user => [user.email, user.id]))
-    console.log('📝 validateMentions - Email to ID map:', Object.fromEntries(emailToId))
+    
+    console.log('📝 [@DEBUG] Email to ID mapping:', {
+        totalMappings: emailToId.size,
+        mappings: Object.fromEntries(emailToId)
+    })
     
     const validIds = mentions
-        .map(email => emailToId.get(email))
+        .map(email => {
+            const id = emailToId.get(email)
+            console.log('🔍 [@DEBUG] Validating mention:', { email, foundId: id })
+            return id
+        })
         .filter((id): id is string => id !== undefined)
-    console.log('✅ validateMentions - Valid IDs:', validIds)
+    
+    console.log('✅ [@DEBUG] Valid mention IDs:', validIds)
     return validIds
 }
 

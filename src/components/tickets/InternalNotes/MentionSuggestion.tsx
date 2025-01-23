@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Command } from '@/components/ui'
+import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import { UserRole } from '@/lib/types'
-import { filterMentionableUsers } from '@/lib/utils/mentions'
 
 interface User {
     id: string
@@ -15,63 +13,61 @@ interface MentionSuggestionProps {
     users: User[]
     currentUserRole: UserRole
     onSelect: (user: User) => void
-    className?: string
 }
 
-export function MentionSuggestion({ 
+export const MentionSuggestion = memo(function MentionSuggestion({ 
     query, 
     users, 
     currentUserRole,
-    onSelect,
-    className 
+    onSelect
 }: MentionSuggestionProps) {
-    console.log('🚀 MentionSuggestion - Component Initializing', {
-        hasQuery: Boolean(query),
-        hasUsers: Boolean(users?.length),
-        currentUserRole
+    // Defensive checks
+    if (!users?.length) {
+        console.log('⚠️ MentionSuggestion: No users provided')
+        return null
+    }
+
+    if (!currentUserRole) {
+        console.log('⚠️ MentionSuggestion: No user role provided')
+        return null
+    }
+
+    // Only show for ADMIN and AGENT
+    if (currentUserRole !== UserRole.ADMIN && currentUserRole !== UserRole.AGENT) {
+        console.log('⚠️ MentionSuggestion: Unauthorized role:', currentUserRole)
+        return null
+    }
+
+    // Filter users by role and query
+    const filteredUsers = users.filter(user => 
+        (user.role === UserRole.ADMIN || user.role === UserRole.AGENT) &&
+        (!query || user.email.toLowerCase().includes(query.toLowerCase()))
+    )
+
+    console.log('👥 MentionSuggestion filtered:', {
+        total: users.length,
+        filtered: filteredUsers.length,
+        query
     })
 
-    // Only show suggestions for ADMIN and AGENT users
-    if (currentUserRole !== UserRole.ADMIN && currentUserRole !== UserRole.AGENT) {
-        console.log('🚫 MentionSuggestion - User not authorized:', currentUserRole)
-        return null
-    }
+    if (filteredUsers.length === 0) return null
 
-    // Filter users based on query and roles
-    const mentionableUsers = filterMentionableUsers(users)
-    console.log('👥 MentionSuggestion - Mentionable users:', mentionableUsers.length)
-
-    const filteredUsers = mentionableUsers.filter(user => 
-        user.email.toLowerCase().includes(query.toLowerCase())
-    )
-    console.log('🔎 MentionSuggestion - Filtered users:', filteredUsers.length)
-
-    const handleSelect = useCallback((user: User) => {
-        console.log('✨ MentionSuggestion - User selected:', user)
-        onSelect(user)
-    }, [onSelect])
-
-    // Don't show if no query or no filtered users
-    if (!query || filteredUsers.length === 0) {
-        console.log('🚫 MentionSuggestion - No query or no filtered users')
-        return null
-    }
-
-    console.log('🎯 MentionSuggestion - Rendering suggestion list')
     return (
-        <Command className={cn('border rounded-lg shadow-md bg-white', className)}>
-            <div className="p-2 space-y-1">
+        <div className="border rounded-lg shadow-md bg-white min-w-[200px]">
+            <div className="p-2 space-y-1 max-h-[200px] overflow-y-auto">
                 {filteredUsers.map(user => (
                     <button
                         key={user.id}
-                        onClick={() => handleSelect(user)}
-                        className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                        onClick={() => onSelect(user)}
+                        className="w-full text-left px-3 py-2 rounded hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
                     >
-                        <div className="text-sm font-medium">{user.email}</div>
-                        <div className="text-xs text-gray-500">{user.role}</div>
+                        <div className="flex flex-col">
+                            <span className="text-sm font-medium">{user.email}</span>
+                            <span className="text-xs text-gray-500 capitalize">{user.role.toLowerCase()}</span>
+                        </div>
                     </button>
                 ))}
             </div>
-        </Command>
+        </div>
     )
-} 
+}) 

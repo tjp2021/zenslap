@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/types/supabase'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -27,19 +27,38 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
   const supabase = createClientComponentClient<Database>()
   const queryClient = useQueryClient()
 
+  // Debug mount/unmount
+  useEffect(() => {
+    console.log('🔄 [LIFECYCLE] InternalNotes mounted', {
+      ticketId,
+      userId,
+      userRole,
+      timestamp: new Date().toISOString()
+    })
+    return () => {
+      console.log('🔄 [LIFECYCLE] InternalNotes unmounted', {
+        ticketId,
+        timestamp: new Date().toISOString()
+      })
+    }
+  }, [ticketId, userId, userRole])
+
   // Fetch notes for this ticket
   const { data: notes, isLoading: notesLoading, error: notesError } = useQuery({
     queryKey: ['notes', ticketId],
     queryFn: async () => {
-      console.log('🔍 InternalNotes - Fetching notes for ticket:', ticketId)
+      console.log('📥 [DATA] Fetching notes:', { ticketId })
       const { data, error } = await supabase
         .from('internal_notes')
         .select('*')
         .eq('ticket_id', ticketId)
         .order('created_at', { ascending: true })
 
-      if (error) throw error
-      console.log(`✅ InternalNotes - Fetched ${data?.length || 0} notes`)
+      if (error) {
+        console.error('❌ [ERROR] Failed to fetch notes:', error)
+        throw error
+      }
+      console.log(`✅ [DATA] Fetched ${data?.length || 0} notes`)
       return data || []
     }
   })
@@ -48,21 +67,28 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
   const { data: users, isLoading: usersLoading, error: usersError } = useQuery({
     queryKey: ['mentionable-users'],
     queryFn: async () => {
-      console.log('🔍 InternalNotes - Fetching mentionable users')
+      console.log('📥 [DATA] Fetching mentionable users')
       const { data, error } = await supabase
         .from('users_secure')
         .select('*')
         .in('role', ['admin', 'agent'])
 
-      if (error) throw error
-      console.log(`✅ InternalNotes - Fetched ${data?.length || 0} mentionable users`)
+      if (error) {
+        console.error('❌ [ERROR] Failed to fetch users:', error)
+        throw error
+      }
+      console.log(`✅ [DATA] Fetched ${data?.length || 0} mentionable users:`, 
+        data?.map(u => ({ id: u.id, email: u.email, role: u.role }))
+      )
       return (data || []) as User[]
-    }
+    },
+    staleTime: 30000 // Cache for 30 seconds
   })
 
   // Create note mutation
   const { mutate: createNote, isPending: isCreating } = useMutation({
     mutationFn: async ({ content, mentions }: { content: string, mentions?: string[] }) => {
+      console.log('📝 [MUTATION] Creating note:', { content, mentions })
       const { data, error } = await supabase
         .from('internal_notes')
         .insert([
@@ -76,10 +102,15 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ [ERROR] Failed to create note:', error)
+        throw error
+      }
+      console.log('✅ [MUTATION] Note created:', data)
       return data
     },
     onSuccess: () => {
+      console.log('🔄 [CACHE] Invalidating notes cache')
       queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
     }
   })
@@ -118,6 +149,7 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
   })
 
   const handleCreateNote = useCallback(async (content: string, mentions?: string[]) => {
+    console.log('🎯 [ACTION] handleCreateNote called:', { content, mentions })
     await createNote({ content, mentions })
   }, [createNote])
 
@@ -130,6 +162,7 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
   }, [deleteNote])
 
   if (notesError || usersError) {
+    console.error('❌ [ERROR] Component error:', { notesError, usersError })
     return (
       <div className="text-red-500">
         Error loading notes or users
@@ -138,6 +171,12 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
   }
 
   const isLoading = notesLoading || usersLoading
+  console.log('👁️ [RENDER] InternalNotes rendering:', {
+    notesCount: notes?.length,
+    usersCount: users?.length,
+    isLoading,
+    timestamp: new Date().toISOString()
+  })
 
   return (
     <div className={className}>
