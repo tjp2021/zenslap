@@ -1,3 +1,5 @@
+'use client'
+
 import { useCallback, useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { UserRole } from '@/lib/types'
@@ -16,51 +18,57 @@ export function useStaffUsers() {
 
   const fetchStaffUsers = useCallback(async () => {
     try {
-      console.log('🔥 STAFF USERS HOOK: Starting fetch...')
+      console.log('🔍 DEBUG: Starting staff users fetch')
       setIsLoading(true)
       setError(null)
 
-      // First get current user's role
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      
-      if (!session) {
-        throw new Error('No session')
-      }
+      // First verify session with app_metadata
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log('🔍 DEBUG: Current session:', {
+        user: session?.user?.email,
+        role: session?.user?.app_metadata?.role,
+        id: session?.user?.id,
+        metadata: session?.user?.app_metadata
+      })
 
-      // Get all users - the RLS policy will handle filtering
+      // Use exact string values from database
+      const roles = ['admin', 'agent']
+      console.log('🔍 DEBUG: Querying for roles:', roles)
+
       const { data, error: fetchError } = await supabase
         .from('users_secure')
         .select('id, email, role')
-        .in('role', ['admin', 'agent']) // Only get staff users
+        .in('role', roles)
         .order('email')
 
-      console.log('🔥 STAFF USERS HOOK: Raw query result:', { 
+      // Detailed response logging
+      console.log('🔍 DEBUG: Query complete:', {
         success: !fetchError,
-        data: data || [], 
-        error: fetchError,
-        count: data?.length || 0,
-        roles: data?.map(u => u.role) || []
+        error: fetchError?.message,
+        errorCode: fetchError?.code,
+        dataReceived: !!data,
+        userCount: data?.length || 0,
+        firstUser: data?.[0],
+        roles: data?.map(u => u.role)
       })
 
       if (fetchError) throw fetchError
-
+      
       setUsers(data || [])
-      console.log('🔥 STAFF USERS HOOK: State updated with users:', data || [])
+      console.log('🔍 DEBUG: State updated with users:', data?.length || 0)
     } catch (err) {
-      console.error('🔥 STAFF USERS HOOK: Error:', err)
+      console.error('🔍 DEBUG: Error in useStaffUsers:', err)
       setError(err as Error)
+      setUsers([])
     } finally {
       setIsLoading(false)
-      console.log('🔥 STAFF USERS HOOK: Loading finished')
     }
   }, [supabase])
 
   useEffect(() => {
-    console.log('🔥 STAFF USERS HOOK: Mounted, triggering fetch')
+    console.log('🔍 DEBUG: useStaffUsers mounted, fetching...')
     fetchStaffUsers()
   }, [fetchStaffUsers])
 
-  console.log('🔥 STAFF USERS HOOK: Rendering with state:', { users, isLoading, error })
   return { users, isLoading, error, refetch: fetchStaffUsers }
 } 

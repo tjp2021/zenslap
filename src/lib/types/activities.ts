@@ -10,10 +10,20 @@ export const ACTIVITY_TYPES = {
 // Activity type from constants
 export type ActivityType = typeof ACTIVITY_TYPES[keyof typeof ACTIVITY_TYPES]
 
+// Mention data type
+export interface MentionData {
+  id: string
+  type: 'user'
+  referenced_id: string
+}
+
 // Content types for each activity
 export interface CommentContent {
   text: string
   is_internal: boolean
+  raw_content?: string // Original input with @mentions
+  parsed_content?: string // Processed content with mention metadata
+  mentions?: MentionData[] // Array of mentions in the comment
 }
 
 export interface StatusChangeContent {

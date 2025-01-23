@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import useSWR from 'swr'
-import { TicketActivity, CreateActivityDTO, Actor, ActivityType, CommentContent } from '@/lib/types/activities'
+import { TicketActivity, CreateActivityDTO, Actor, ActivityType, CommentContent, MentionData } from '@/lib/types/activities'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
@@ -92,7 +92,7 @@ export function useTicketActivities(ticketId: string) {
     }
   )
 
-  const addActivity = async (content: string, isInternal: boolean = false) => {
+  const addActivity = async (content: string, isInternal: boolean = false, mentions: MentionData[] = []) => {
     if (!user) {
       toast({
         title: 'Error',
@@ -107,7 +107,10 @@ export function useTicketActivities(ticketId: string) {
       activity_type: 'comment' as ActivityType,
       content: {
         text: content,
-        is_internal: isInternal
+        is_internal: isInternal,
+        mentions,
+        raw_content: content,
+        parsed_content: content // TODO: Add proper parsing if needed
       } as CommentContent,
     }
 
