@@ -109,27 +109,16 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       })
     }
 
-    // Update ticket
+    // Update ticket using function
     const { data: updatedTicket, error: updateError } = await supabase
-      .from('tickets')
-      .update(validatedData)
-      .eq('id', params.id)
-      .select()
-      .single()
+      .rpc('update_ticket_with_activity', {
+        p_ticket_id: params.id,
+        p_updates: validatedData,
+        p_actor_id: user.id
+      })
 
     if (updateError) {
       throw updateError
-    }
-
-    // Record all activities
-    if (changes.length > 0) {
-      const { error: activityError } = await supabase
-        .from('ticket_activities')
-        .insert(changes)
-
-      if (activityError) {
-        console.error('Failed to record activities:', activityError)
-      }
     }
 
     return NextResponse.json({ data: updatedTicket })

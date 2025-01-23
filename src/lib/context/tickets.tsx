@@ -289,9 +289,11 @@ function TicketsProviderContent({
     try {
       updateOperationState('update', 'loading', data.id)
       const { error } = await supabase
-        .from('tickets')
-        .update(data)
-        .eq('id', data.id)
+        .rpc('update_ticket_with_activity', {
+          p_ticket_id: data.id,
+          p_updates: data,
+          p_actor_id: user?.id
+        })
 
       if (error) throw error
       await loadTickets()
@@ -330,12 +332,20 @@ function TicketsProviderContent({
   async function bulkUpdateTickets(ids: string[], updates: Partial<UpdateTicketDTO>) {
     try {
       updateOperationState('bulk_update', 'loading')
-      const { error } = await supabase
-        .from('tickets')
-        .update(updates)
-        .in('id', ids)
-
-      if (error) throw error
+      
+      // Update each ticket individually using the RPC function
+      const promises = ids.map(id => 
+        supabase.rpc('update_ticket_with_activity', {
+          p_ticket_id: id,
+          p_updates: updates,
+          p_actor_id: user?.id
+        })
+      )
+      
+      const results = await Promise.all(promises)
+      const errors = results.filter(r => r.error).map(r => r.error)
+      
+      if (errors.length > 0) throw errors[0]
       await loadTickets()
       
       updateOperationState('bulk_update', 'success')

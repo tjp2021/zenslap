@@ -40,6 +40,7 @@ import { useRoleAccess } from '@/hooks/useRoleAccess'
 import { cn } from '@/lib/utils'
 import { CommentHistory } from './CommentHistory'
 import { useStaffUsers } from '@/hooks/useStaffUsers'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface TicketHistory {
   id: string
@@ -118,6 +119,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   const [history, setHistory] = useState<TicketHistory[]>([])
   const { hasRole } = useRoleAccess()
   const isStaff = hasRole([UserRole.ADMIN, UserRole.AGENT] as UserRole[])
+  const queryClient = useQueryClient()
 
   // Use reducer instead of useState
   const [formState, dispatch] = useReducer(formReducer, {
@@ -278,11 +280,11 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       console.log('🔍 Form Submit - Sending to Supabase:', validatedData)
       
       const { data: updatedTicket, error: updateError } = await supabase
-        .from('tickets')
-        .update(validatedData)
-        .eq('id', id)
-        .select()
-        .single()
+        .rpc('update_ticket_with_activity', {
+          p_ticket_id: id,
+          p_updates: validatedData,
+          p_actor_id: user?.id
+        })
 
       console.log('🔍 Form Submit - Supabase response:', { updatedTicket, error: updateError })
 
@@ -291,6 +293,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       if (updatedTicket) {
         console.log('🔍 Form Submit - Success:', updatedTicket)
         await mutate(updatedTicket as Ticket)
+        // Invalidate activities query to trigger refresh
+        queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
         dispatch({ type: 'RESET' })
       }
     } catch (err: unknown) {
@@ -449,18 +453,18 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                 onValueChange={(value) => {
                   console.log('🔍 Status changed:', value)
                   handleFieldChange('status')
-                  // Make immediate update but stay in edit mode
+                  // Make immediate update using RPC function
                   const updates: Partial<UpdateTicketDTO> = { 
                     id,
                     status: value as typeof TICKET_STATUSES[number]
                   }
                   console.log('🔍 Sending status update:', updates)
                   supabase
-                    .from('tickets')
-                    .update(updates)
-                    .eq('id', id)
-                    .select()
-                    .single()
+                    .rpc('update_ticket_with_activity', {
+                      p_ticket_id: id,
+                      p_updates: updates,
+                      p_actor_id: user?.id
+                    })
                     .then(({ data, error }) => {
                       if (error) {
                         console.error('Failed to update status:', error)
@@ -468,6 +472,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                       }
                       console.log('Status updated:', data)
                       mutate(data as Ticket)
+                      // Invalidate activities query to trigger refresh
+                      queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
                     })
                 }}
               >
@@ -499,18 +505,18 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                 onValueChange={(value) => {
                   console.log('🔍 Priority changed:', value)
                   handleFieldChange('priority')
-                  // Make immediate update but stay in edit mode
+                  // Make immediate update using RPC function
                   const updates: Partial<UpdateTicketDTO> = { 
                     id,
                     priority: value as typeof TICKET_PRIORITIES[number]
                   }
                   console.log('🔍 Sending priority update:', updates)
                   supabase
-                    .from('tickets')
-                    .update(updates)
-                    .eq('id', id)
-                    .select()
-                    .single()
+                    .rpc('update_ticket_with_activity', {
+                      p_ticket_id: id,
+                      p_updates: updates,
+                      p_actor_id: user?.id
+                    })
                     .then(({ data, error }) => {
                       if (error) {
                         console.error('Failed to update priority:', error)
@@ -518,6 +524,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                       }
                       console.log('Priority updated:', data)
                       mutate(data as Ticket)
+                      // Invalidate activities query to trigger refresh
+                      queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
                     })
                 }}
               >
@@ -551,18 +559,18 @@ export function TicketDetails({ id }: TicketDetailsProps) {
               onValueChange={(value) => {
                 console.log('🔍 Assignee changed:', value)
                 handleFieldChange('assignee')
-                // Make immediate update but stay in edit mode
+                // Make immediate update using RPC function
                 const updates: Partial<UpdateTicketDTO> = { 
                   id,
                   assignee: value === 'unassigned' ? null : value
                 }
                 console.log('🔍 Sending assignee update:', updates)
                 supabase
-                  .from('tickets')
-                  .update(updates)
-                  .eq('id', id)
-                  .select()
-                  .single()
+                  .rpc('update_ticket_with_activity', {
+                    p_ticket_id: id,
+                    p_updates: updates,
+                    p_actor_id: user?.id
+                  })
                   .then(({ data, error }) => {
                     if (error) {
                       console.error('Failed to update assignee:', error)
@@ -570,6 +578,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
                     }
                     console.log('Assignee updated:', data)
                     mutate(data as Ticket)
+                    // Invalidate activities query to trigger refresh
+                    queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
                   })
               }}
             >
