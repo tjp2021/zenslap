@@ -46,8 +46,8 @@ export function useNotifications() {
   useEffect(() => {
     if (!user) return
 
-    const subscription = supabase
-      .channel('notifications')
+    const channel = supabase
+      .channel(`notifications:${user.id}`) // Unique channel per user
       .on(
         'postgres_changes',
         {
@@ -56,15 +56,19 @@ export function useNotifications() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`
         },
-        () => {
-          // Invalidate and refetch
-          mutate()
+        (payload) => {
+          console.log('🔄 Real-time notification update:', payload)
+          // Force immediate refetch without caching
+          mutate(undefined, { revalidate: true })
         }
       )
       .subscribe()
 
+    console.log('🔌 Subscribed to notification changes for user:', user.id)
+
     return () => {
-      subscription.unsubscribe()
+      console.log('❌ Unsubscribed from notification changes')
+      channel.unsubscribe()
     }
   }, [user, mutate, supabase])
 
@@ -93,22 +97,24 @@ export function useNotifications() {
 
   // Mark all as read
   const markAllAsRead = async () => {
-    if (!user) return
+    if (!user || !notifications.length) return
 
-    // Optimistically update cache
-    mutate([], false)
+    console.log('🔄 Marking these notifications as read:', notifications.map(n => n.id))
 
+    // Use direct UPDATE instead of RPC
     const { error } = await supabase
       .from('notifications')
       .update({ read: true })
+      .in('id', notifications.map(n => n.id))
       .eq('user_id', user.id)
-      .eq('read', false)
 
     if (error) {
-      // If error, revalidate to get real state
-      mutate()
+      console.error('Failed to mark notifications as read:', error)
       throw error
     }
+
+    // Force immediate refetch without caching
+    await mutate(undefined, { revalidate: true })
   }
 
   return {

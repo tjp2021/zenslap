@@ -39,9 +39,15 @@ export function NotificationList({ onClose }: NotificationListProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
-            markAllAsRead()
-            onClose()
+          onClick={async () => {
+            console.log('🔔 Mark all as read clicked')
+            try {
+              await markAllAsRead()
+              console.log('✅ Successfully marked all as read')
+              onClose()
+            } catch (error) {
+              console.error('❌ Failed to mark all as read:', error)
+            }
           }}
         >
           Mark all as read
@@ -53,9 +59,11 @@ export function NotificationList({ onClose }: NotificationListProps) {
             key={notification.id}
             href={`/tickets/${notification.activity.ticket_id}`}
             className="block border-b p-4 transition-colors hover:bg-gray-50"
-            onClick={() => {
-              markAsRead(notification.id)
+            onClick={async (e) => {
+              e.preventDefault() // Prevent navigation until we mark as read
+              await markAsRead(notification.id)
               onClose()
+              window.location.href = `/tickets/${notification.activity.ticket_id}`
             }}
           >
             <div className="flex items-start justify-between gap-2">
