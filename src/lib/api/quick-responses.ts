@@ -1,4 +1,4 @@
-import { createApiClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/types/supabase'
 
 type ResponseCategory = Database['public']['Tables']['response_categories']['Row']
@@ -7,7 +7,7 @@ type QuickResponse = Database['public']['Tables']['quick_responses']['Row']
 // Categories
 export async function getCategories() {
   try {
-    const supabase = createApiClient()
+    const supabase = createClient()
     const { data, error } = await supabase
       .from('response_categories')
       .select('*')
@@ -23,7 +23,7 @@ export async function getCategories() {
 
 export async function createCategory(name: string) {
   try {
-    const supabase = createApiClient()
+    const supabase = createClient()
     const { data, error } = await supabase
       .from('response_categories')
       .insert({ name })
@@ -42,7 +42,7 @@ export async function createCategory(name: string) {
 export const quickResponses = {
   async getAll() {
     try {
-      const supabase = createApiClient()
+      const supabase = createClient()
       const { data, error } = await supabase
         .from('quick_responses')
         .select('*')
@@ -58,7 +58,7 @@ export const quickResponses = {
 
   async create(title: string, content: string) {
     try {
-      const supabase = createApiClient()
+      const supabase = createClient()
       const { data, error } = await supabase
         .from('quick_responses')
         .insert([{ title, content }])
@@ -75,7 +75,7 @@ export const quickResponses = {
 
   async update(id: string, updates: Partial<QuickResponse>) {
     try {
-      const supabase = createApiClient()
+      const supabase = createClient()
       const { data, error } = await supabase
         .from('quick_responses')
         .update(updates)
@@ -93,7 +93,7 @@ export const quickResponses = {
 
   async delete(id: string) {
     try {
-      const supabase = createApiClient()
+      const supabase = createClient()
       const { error } = await supabase
         .from('quick_responses')
         .delete()

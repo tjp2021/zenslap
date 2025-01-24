@@ -1,9 +1,7 @@
 export interface ResponseCategory {
   id: string
   name: string
-  description: string | null
-  created_at: string
-  created_by: string
+  description?: string
 }
 
 export interface QuickResponse {
@@ -11,10 +9,8 @@ export interface QuickResponse {
   category_id: string
   title: string
   content: string
-  variables: string[]
   created_at: string
   updated_at: string
-  created_by: string
 }
 
 export interface CreateResponseCategoryData {
