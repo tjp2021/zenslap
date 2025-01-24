@@ -65,6 +65,7 @@ export default function AuthUI() {
         <Auth
           supabaseClient={supabase}
           view="sign_in"
+          redirectTo={`${SITE_URL}/auth/callback`}
           appearance={{
             theme: ThemeSupa,
             variables: {

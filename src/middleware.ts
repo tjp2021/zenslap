@@ -4,6 +4,8 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/lib/supabase/server'
 import { UserRole } from '@/lib/types'
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
 // Define route patterns
 const ADMIN_ROUTES = ['/admin']
 const AGENT_ROUTES = ['/(dashboard)/tickets', '/(dashboard)/tickets/*']  // Updated to match Next.js 13+ route groups
@@ -18,7 +20,8 @@ export async function middleware(req: NextRequest) {
   console.log('🔍 Middleware - Start', { 
     pathname,
     url: req.url,
-    method: req.method
+    method: req.method,
+    siteUrl: SITE_URL
   })
 
   // Skip middleware for auth callback first
@@ -50,7 +53,7 @@ export async function middleware(req: NextRequest) {
 
   if (error || !session) {
     console.log('⛔ Middleware - No session, redirecting to login', { pathname })
-    return NextResponse.redirect(new URL('/auth/login', req.url))
+    return NextResponse.redirect(new URL('/auth/login', SITE_URL))
   }
 
   // Get user role
@@ -67,7 +70,7 @@ export async function middleware(req: NextRequest) {
   if (ADMIN_ROUTES.some(route => pathname.startsWith(route))) {
     if (userRole !== UserRole.ADMIN) {
       console.log('🚫 Middleware - Unauthorized admin access', { pathname, userRole })
-      return NextResponse.redirect(new URL('/unauthorized', req.url))
+      return NextResponse.redirect(new URL('/unauthorized', SITE_URL))
     }
   }
 
@@ -75,7 +78,7 @@ export async function middleware(req: NextRequest) {
   if (AGENT_ROUTES.some(route => pathname.startsWith(route))) {
     if (userRole !== UserRole.ADMIN && userRole !== UserRole.AGENT) {
       console.log('🚫 Middleware - Unauthorized agent access', { pathname, userRole })
-      return NextResponse.redirect(new URL('/unauthorized', req.url))
+      return NextResponse.redirect(new URL('/unauthorized', SITE_URL))
     }
   }
 
