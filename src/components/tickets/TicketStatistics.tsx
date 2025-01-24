@@ -5,7 +5,7 @@ import { useTicketStatistics } from "@/hooks/useTicketStatistics"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export function TicketStatistics() {
-  const { stats, loading, error } = useTicketStatistics()
+  const { statistics, isLoading: loading, isError: error } = useTicketStatistics()
 
   if (loading) {
     return (
@@ -42,15 +42,15 @@ export function TicketStatistics() {
         <h3 className="text-sm font-medium mb-2">Ticket Statistics (this week)</h3>
         <div className="grid grid-cols-3 gap-4">
           <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-            <div className="text-2xl font-bold text-[#2d6847]">{stats.good}</div>
+            <div className="text-2xl font-bold text-[#2d6847]">{statistics.good}</div>
             <div className="text-sm text-muted-foreground">GOOD</div>
           </div>
           <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-            <div className="text-2xl font-bold text-[#2d6847]">{stats.bad}</div>
+            <div className="text-2xl font-bold text-[#2d6847]">{statistics.bad}</div>
             <div className="text-sm text-muted-foreground">BAD</div>
           </div>
           <div className="text-center p-4 bg-[#f8faf6] rounded-lg">
-            <div className="text-2xl font-bold text-[#2d6847]">{stats.solved}</div>
+            <div className="text-2xl font-bold text-[#2d6847]">{statistics.solved}</div>
             <div className="text-sm text-muted-foreground">SOLVED</div>
           </div>
         </div>
