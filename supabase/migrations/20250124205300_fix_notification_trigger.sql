@@ -29,6 +29,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA public TO postgres, authenticated, service_role;
+GRANT ALL ON notifications TO postgres, authenticated, service_role;
+GRANT ALL ON users_secure TO postgres, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION create_mention_notifications() TO postgres, authenticated, service_role;
+
 -- Create trigger for mentions - fires on ANY activity with mentions
 CREATE TRIGGER on_mention
     AFTER INSERT OR UPDATE OF mentioned_user_ids ON ticket_activities
