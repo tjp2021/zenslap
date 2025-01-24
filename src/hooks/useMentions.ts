@@ -1,178 +1,102 @@
 'use client'
 
-import { useCallback, useReducer, useRef, useMemo } from 'react'
-import { useDebounce } from '@/hooks/useDebounce'
-import { MentionData } from '@/lib/types/activities'
-import { useStaffUsers } from '@/hooks/useStaffUsers'
-import { UserRole } from '@/lib/types'
+import { useCallback, useReducer } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
 
 interface MentionState {
+  query: string
   isActive: boolean
-  searchTerm: string
-  selectedIndex: number
-  startPosition: number
+  isLoading: boolean
+  users: Array<{
+    id: string
+    email: string
+    role: string
+  }>
 }
 
 type MentionAction =
-  | { type: 'START_MENTION'; position: number }
-  | { type: 'UPDATE_SEARCH'; term: string }
-  | { type: 'SELECT_NEXT' }
-  | { type: 'SELECT_PREV' }
+  | { type: 'SET_QUERY'; payload: string }
+  | { type: 'SET_ACTIVE'; payload: boolean }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_USERS'; payload: MentionState['users'] }
   | { type: 'RESET' }
-  | { type: 'SET_INDEX'; index: number }
 
 const initialState: MentionState = {
+  query: '',
   isActive: false,
-  searchTerm: '',
-  selectedIndex: 0,
-  startPosition: 0
+  isLoading: false,
+  users: []
 }
 
 function mentionReducer(state: MentionState, action: MentionAction): MentionState {
   switch (action.type) {
-    case 'START_MENTION':
-      return {
-        ...state,
-        isActive: true,
-        startPosition: action.position,
-        searchTerm: '',
-        selectedIndex: 0
-      }
-    case 'UPDATE_SEARCH':
-      return {
-        ...state,
-        searchTerm: action.term,
-        selectedIndex: 0
-      }
-    case 'SELECT_NEXT':
-      return {
-        ...state,
-        selectedIndex: state.selectedIndex + 1
-      }
-    case 'SELECT_PREV':
-      return {
-        ...state,
-        selectedIndex: Math.max(0, state.selectedIndex - 1)
-      }
+    case 'SET_QUERY':
+      return { ...state, query: action.payload }
+    case 'SET_ACTIVE':
+      return { ...state, isActive: action.payload }
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload }
+    case 'SET_USERS':
+      return { ...state, users: action.payload }
     case 'RESET':
       return initialState
-    case 'SET_INDEX':
-      return {
-        ...state,
-        selectedIndex: action.index
-      }
     default:
       return state
   }
 }
 
-interface StaffUser {
-  id: string
-  email: string
-  role: UserRole
-}
-
 interface UseMentionsOptions {
-  onMention?: (mention: MentionData) => void
-  maxSuggestions?: number
+  onSelect?: (user: { id: string; email: string; role: string }) => void
 }
 
 export function useMentions(options: UseMentionsOptions = {}) {
-  const { maxSuggestions = 10 } = options
+  const supabase = createClientComponentClient<Database>()
   const [state, dispatch] = useReducer(mentionReducer, initialState)
-  const { users: staffUsers, isLoading } = useStaffUsers()
-  
-  // Memoize staff users to prevent unnecessary re-renders
-  const memoizedStaffUsers = useMemo(() => staffUsers || [], [staffUsers])
-  
-  // Filter staff users based on search term - memoized to prevent recalculation
-  const suggestions = useMemo(() => {
-    if (!state.searchTerm) return []
-    
-    return memoizedStaffUsers
-      .filter(user => 
-        user.email.toLowerCase().includes(state.searchTerm.toLowerCase())
-      )
-      .slice(0, maxSuggestions)
-  }, [state.searchTerm, memoizedStaffUsers, maxSuggestions])
 
-  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (!state.isActive) return
-
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault()
-        dispatch({ type: 'SELECT_NEXT' })
-        break
-      case 'ArrowUp':
-        event.preventDefault()
-        dispatch({ type: 'SELECT_PREV' })
-        break
-      case 'Escape':
-        event.preventDefault()
-        dispatch({ type: 'RESET' })
-        break
-      case 'Enter':
-      case 'Tab':
-        if (state.isActive) {
-          event.preventDefault()
-          const filtered = suggestions
-          if (filtered[state.selectedIndex]) {
-            const user = filtered[state.selectedIndex]
-            options.onMention?.({
-              id: crypto.randomUUID(),
-              type: 'user',
-              referenced_id: user.id,
-            })
-            dispatch({ type: 'RESET' })
-          }
-        }
-        break
+  const searchUsers = useCallback(async (query: string) => {
+    if (!query) {
+      dispatch({ type: 'SET_USERS', payload: [] })
+      return
     }
-  }, [state, suggestions, options])
 
-  const handleInput = useCallback((text: string, cursorPosition: number) => {
-    const beforeCursor = text.slice(0, cursorPosition)
-    const lastAtSymbol = beforeCursor.lastIndexOf('@')
-    
-    if (lastAtSymbol !== -1) {
-      const textAfterAt = beforeCursor.slice(lastAtSymbol + 1)
-      if (!textAfterAt.includes(' ')) {
-        dispatch({ type: 'START_MENTION', position: lastAtSymbol })
-        dispatch({ type: 'UPDATE_SEARCH', term: textAfterAt })
-        return
-      }
-    }
-    
-    if (state.isActive) {
-      const currentMention = text.slice(state.startPosition, cursorPosition)
-      if (currentMention.includes(' ')) {
-        dispatch({ type: 'RESET' })
-      } else {
-        dispatch({ type: 'UPDATE_SEARCH', term: currentMention.slice(1) })
-      }
-    }
-  }, [state])
+    dispatch({ type: 'SET_LOADING', payload: true })
 
-  const handleSelect = useCallback((user: StaffUser) => {
-    options.onMention?.({
-      id: crypto.randomUUID(),
-      type: 'user',
-      referenced_id: user.id,
-    })
+    try {
+      const { data: users, error } = await supabase
+        .from('users_secure')
+        .select('id, email, role')
+        .ilike('email', `%${query}%`)
+        .limit(5)
+
+      if (error) throw error
+
+      dispatch({ type: 'SET_USERS', payload: users || [] })
+    } catch (error) {
+      console.error('Error searching users:', error)
+      dispatch({ type: 'SET_USERS', payload: [] })
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false })
+    }
+  }, [supabase])
+
+  const handleQueryChange = useCallback((query: string) => {
+    dispatch({ type: 'SET_QUERY', payload: query })
+    searchUsers(query)
+  }, [searchUsers])
+
+  const handleSelect = useCallback((user: { id: string; email: string; role: string }) => {
+    options.onSelect?.(user)
     dispatch({ type: 'RESET' })
   }, [options])
 
   return {
+    query: state.query,
     isActive: state.isActive,
-    searchTerm: state.searchTerm,
-    selectedIndex: state.selectedIndex,
-    suggestions,
-    isLoading,
-    handlers: {
-      onKeyDown: handleKeyDown,
-      onInput: handleInput,
-      onSelect: handleSelect
-    }
+    isLoading: state.isLoading,
+    users: state.users,
+    setQuery: handleQueryChange,
+    setActive: (active: boolean) => dispatch({ type: 'SET_ACTIVE', payload: active }),
+    handleSelect
   }
 } 

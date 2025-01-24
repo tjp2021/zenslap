@@ -6,7 +6,16 @@ CREATE TABLE IF NOT EXISTS ticket_activities (
     activity_type TEXT NOT NULL CHECK (
         activity_type IN ('comment', 'status_change', 'field_change', 'assignment')
     ),
-    content JSONB NOT NULL,
+    content JSONB NOT NULL CHECK (
+        CASE 
+            WHEN activity_type = 'comment' THEN
+                (content ? 'text')
+                AND (content ? 'is_internal')
+                AND (content ? 'mentions')
+                AND jsonb_typeof(content->'mentions') = 'array'
+            ELSE true
+        END
+    ),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

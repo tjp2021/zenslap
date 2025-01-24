@@ -6,6 +6,7 @@ import { TicketActivity, CreateActivityDTO, Actor, ActivityType, CommentContent,
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { createActivitySchema } from '@/lib/validation'
 
 export function useTicketActivities(ticketId: string) {
   const supabase = createClient()
@@ -22,6 +23,19 @@ export function useTicketActivities(ticketId: string) {
   } = useSWR<TicketActivity[]>(
     user && ticketId ? `ticket-activities-${ticketId}` : null,
     async () => {
+      console.log('🔍 [useTicketActivities] Starting fetch with:', {
+        user,
+        ticketId,
+        isStaff,
+        timestamp: new Date().toISOString(),
+        swr_key: `ticket-activities-${ticketId}`
+      })
+
+      if (!user || !ticketId) {
+        console.log('❌ [useTicketActivities] Missing user or ticketId:', { user, ticketId })
+        return []
+      }
+
       // First get the activities - no JSON filtering in query
       const query = supabase
         .from('ticket_activities')
@@ -36,27 +50,27 @@ export function useTicketActivities(ticketId: string) {
         .eq('ticket_id', ticketId)
         .order('created_at', { ascending: false })
 
-      // Debug the query parameters
-      console.log('🔍 Query Debug:', {
-        isStaff,
+      console.log('🔍 [useTicketActivities] Executing query for:', {
         ticketId,
-        isAdmin,
-        isAgent
+        isStaff,
+        user_id: user.id,
+        query_details: query.toString()
       })
 
       const { data: activities, error: activitiesError } = await query
 
-      // Debug the raw results with focus on roles
-      console.log('🔍 Raw Query Results:', {
-        activities: activities?.map(a => ({
-          id: a.id,
-          actor_role: a.actor?.role,  // Get role from actor object
-          actor_id: a.actor_id
-        })),
-        error: activitiesError
+      console.log('🔍 [useTicketActivities] Raw query results:', {
+        hasData: !!activities,
+        dataLength: activities?.length,
+        firstActivity: activities?.[0],
+        error: activitiesError,
+        timestamp: new Date().toISOString()
       })
 
-      if (activitiesError) throw activitiesError
+      if (activitiesError) {
+        console.error('❌ [useTicketActivities] Query error:', activitiesError)
+        throw activitiesError
+      }
 
       // Filter internal notes if not staff
       const filteredActivities = isStaff 
@@ -67,11 +81,28 @@ export function useTicketActivities(ticketId: string) {
             return !content?.is_internal
           })
 
+      console.log('🔍 [useTicketActivities] After filtering:', {
+        originalLength: activities?.length,
+        filteredLength: filteredActivities?.length,
+        isStaff,
+        removedCount: (activities?.length || 0) - (filteredActivities?.length || 0)
+      })
+
       // Map activities to include actor role
       const formattedActivities = filteredActivities?.map(activity => ({
         ...activity,
-        actor: activity.actor // Keep the original actor object with role
+        actor: activity.actor
       }))
+
+      console.log('🔍 [useTicketActivities] Final formatted activities:', {
+        length: formattedActivities?.length,
+        firstFewActivities: formattedActivities?.slice(0, 2).map(a => ({
+          id: a.id,
+          type: a.activity_type,
+          actorId: a.actor?.id,
+          actorRole: a.actor?.role
+        }))
+      })
 
       return formattedActivities || []
     },
@@ -81,7 +112,7 @@ export function useTicketActivities(ticketId: string) {
     }
   )
 
-  const addActivity = async (content: string, isInternal: boolean = false, mentions: MentionData[] = []) => {
+  const addActivity = async (content: string, isInternal: boolean, mentions: MentionData[] = []) => {
     if (!user) {
       toast({
         title: 'Error',
@@ -90,7 +121,7 @@ export function useTicketActivities(ticketId: string) {
       return
     }
 
-    // Get emails for all mentioned users
+    // Get emails for all mentioned users for UI display
     const { data: mentionedUsers, error: mentionError } = await supabase
       .from('users_secure')
       .select('id, email')
@@ -100,44 +131,35 @@ export function useTicketActivities(ticketId: string) {
       console.error('Error fetching mentioned users:', mentionError)
     }
 
-    // Create a map of id -> email for quick lookup
+    // Create a map of id -> email for quick lookup in UI
     const userEmailMap = new Map(mentionedUsers?.map(u => [u.id, u.email]) || [])
 
-    // Remove mentions from the displayed text
-    let parsedContent = content
-    mentions.forEach(mention => {
-      // Remove the entire @mention from the text
-      parsedContent = parsedContent.replace(
-        new RegExp(`@${mention.referenced_id}\\s*`, 'g'),
-        ''
-      ).trim()
-    })
-
-    const newActivity: CreateActivityDTO = {
-      ticket_id: ticketId,
-      actor_id: user.id,
-      activity_type: 'comment' as ActivityType,
-      content: {
-        text: content, // Use original content with mentions
-        is_internal: isInternal,
-        mentions: mentions.map(mention => ({
-          ...mention,
-          id: crypto.randomUUID(), // Ensure each mention has a unique ID
-          type: 'user' as const
-        })),
-        raw_content: content,
-        parsed_content: parsedContent
-      } as CommentContent,
-    }
-
     try {
+      console.log('🔍 [1] Raw Input:', { content, isInternal, mentions })
+      
+      const newActivity = {
+        ticket_id: ticketId,
+        actor_id: user.id,
+        activity_type: 'comment' as const,
+        content: {
+          text: content,
+          is_internal: isInternal
+        },
+        mentioned_user_ids: mentions.map(m => m.referenced_id)
+      }
+      
+      console.log('🔍 [2] Activity Structure:', JSON.stringify(newActivity, null, 2))
+      
       const { data: activity, error } = await supabase
         .from('ticket_activities')
         .insert(newActivity)
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error adding activity:', error)
+        throw error
+      }
 
       // Get the actor data
       const { data: actor, error: actorError } = await supabase
@@ -148,8 +170,8 @@ export function useTicketActivities(ticketId: string) {
 
       if (actorError) throw actorError
 
-      // Optimistically update the UI
-      const fullActivity: TicketActivity = {
+      // Update UI
+      const fullActivity = {
         ...activity,
         actor: actor || {
           id: user.id,

@@ -79,21 +79,47 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
   // Filter comments based on user role
   const visibleComments = useMemo(() => {
     if (!comments) return []
+    
+    console.log('🔍 [CommentHistory] Filtering comments:', {
+      totalComments: comments.length,
+      isStaff,
+      timestamp: new Date().toISOString()
+    })
+    
     // Staff can see everything
     if (isStaff) return comments
+    
     // Regular users can only see non-internal comments
-    return comments.filter(comment => !comment.is_internal)
+    const filtered = comments.filter(comment => {
+      if (comment.activity_type !== 'comment') return true
+      const content = comment.content as CommentContent
+      return !content.is_internal
+    })
+    
+    console.log('🔍 [CommentHistory] After filtering:', {
+      originalCount: comments.length,
+      filteredCount: filtered.length,
+      removedCount: comments.length - filtered.length,
+      firstFewFiltered: filtered.slice(0, 2).map(c => ({
+        id: c.id,
+        type: c.activity_type,
+        isInternal: c.activity_type === 'comment' ? (c.content as CommentContent).is_internal : false
+      }))
+    })
+    
+    return filtered
   }, [comments, isStaff])
 
   // Initialize mention handling
   const {
     isActive: showMentions,
-    suggestions,
-    selectedIndex,
+    users: suggestions,
     isLoading: loadingMentions,
-    handlers: mentionHandlers
+    setQuery: handleMentionSearch,
+    setActive: setMentionsActive,
+    handleSelect: onMentionSelect
   } = useMentions({
-    onMention: (mention) => {
+    onSelect: (user) => {
       if (!textareaRef.current) return
 
       const textarea = textareaRef.current
@@ -106,8 +132,7 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
       if (lastAtSymbol === -1) return
 
       // Use email for a cleaner display
-      const selectedUser = suggestions[selectedIndex]
-      const replacementText = `@${selectedUser.email} `
+      const replacementText = `@${user.email} `
       
       // Combine it all
       const newContent = textBeforeCursor.slice(0, lastAtSymbol) + 
@@ -116,7 +141,11 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
 
       // Update content and mentions
       setContent(newContent)
-      setCurrentMentions(prev => [...prev, mention])
+      setCurrentMentions(prev => [...prev, {
+        id: crypto.randomUUID(),
+        type: 'user',
+        referenced_id: user.id
+      }])
       
       // Move cursor to end of inserted mention
       const newCursorPosition = lastAtSymbol + replacementText.length
@@ -130,7 +159,22 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value
     setContent(newContent)
-    mentionHandlers.onInput(newContent, e.target.selectionStart || 0)
+    
+    // Handle mentions
+    const cursorPosition = e.target.selectionStart
+    const textBeforeCursor = newContent.slice(0, cursorPosition)
+    const lastAtSymbol = textBeforeCursor.lastIndexOf('@')
+    
+    if (lastAtSymbol !== -1) {
+      const textAfterAt = textBeforeCursor.slice(lastAtSymbol + 1)
+      if (!textAfterAt.includes(' ')) {
+        setMentionsActive(true)
+        handleMentionSearch(textAfterAt)
+        return
+      }
+    }
+    
+    setMentionsActive(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -211,7 +255,6 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
               ref={textareaRef}
               value={content}
               onChange={handleContentChange}
-              onKeyDown={mentionHandlers.onKeyDown}
               placeholder={isStaff && isInternalNote ? "Add an internal note..." : "Add a comment..."}
               className="min-h-[100px]"
               aria-expanded={showMentions}
@@ -225,8 +268,7 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
                 <MentionList
                   suggestions={suggestions}
                   isLoading={loadingMentions}
-                  selectedIndex={selectedIndex}
-                  onSelect={mentionHandlers.onSelect}
+                  onSelect={onMentionSelect}
                   className="border shadow-lg"
                 />
               </div>
@@ -262,9 +304,9 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
           visibleComments.map(comment => {
             const content = typeof comment.content === 'string' 
               ? JSON.parse(comment.content) 
-              : comment.content
+              : comment.content as CommentContent
             
-            const isInternal = comment.is_internal
+            const isInternal = comment.activity_type === 'comment' && content.is_internal
             
             return (
               <div

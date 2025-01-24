@@ -117,4 +117,26 @@ export const ticketResponseSchema = z.object({
 export const ticketsResponseSchema = z.object({
   data: z.array(ticketSchema),
   error: z.string().nullable()
+})
+
+// Activity validation schemas
+export const mentionDataSchema = z.object({
+    id: z.string().uuid().optional(),
+    type: z.literal('user'),
+    referenced_id: z.string().uuid()
+})
+
+export const commentContentSchema = z.object({
+    text: z.string()
+        .min(1, 'Comment content is required')
+        .max(10000, 'Comment content cannot exceed 10000 characters'),
+    is_internal: z.boolean(),
+    mentions: z.array(mentionDataSchema).optional().default([])
+})
+
+export const createActivitySchema = z.object({
+    ticket_id: uuidSchema,
+    actor_id: uuidSchema,
+    activity_type: z.literal('comment'),
+    content: commentContentSchema
 }) 

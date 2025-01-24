@@ -56,7 +56,8 @@ export const createActivitySchema = z.object({
     z.object({ activity_type: z.literal(ACTIVITY_TYPES.FIELD_CHANGE), content: fieldChangeContentSchema }),
     z.object({ activity_type: z.literal(ACTIVITY_TYPES.ASSIGNMENT), content: assignmentContentSchema }),
     z.object({ activity_type: z.literal(ACTIVITY_TYPES.TAG_CHANGE), content: tagChangeContentSchema })
-  ]).transform(data => data.content)
+  ]).transform(data => data.content),
+  mentioned_user_ids: z.array(z.string().uuid('Invalid user ID')).optional().default([])
 })
 
 export const ticketActivitySchema = z.object({
@@ -71,6 +72,7 @@ export const ticketActivitySchema = z.object({
     assignmentContentSchema,
     tagChangeContentSchema
   ]),
+  mentioned_user_ids: z.array(z.string().uuid()).default([]),
   created_at: z.string().datetime()
 })
 

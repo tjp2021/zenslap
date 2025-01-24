@@ -19,11 +19,10 @@ export interface MentionData {
 
 // Content types for each activity
 export interface CommentContent {
+  /** Original text content including @mentions */
   text: string
+  /** Whether this is an internal note visible only to staff */
   is_internal: boolean
-  raw_content?: string // Original input with @mentions
-  parsed_content?: string // Processed content with mention metadata
-  mentions?: MentionData[] // Array of mentions in the comment
 }
 
 export interface StatusChangeContent {
@@ -68,13 +67,12 @@ export interface Actor {
 export interface TicketActivity {
   id: string
   ticket_id: string
-  actor_id: string
-  actor_role: string
-  actor: Actor
+  actor_id: string | null
   activity_type: ActivityType
-  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent | TagChangeContent
+  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
+  mentioned_user_ids: string[] | null
   created_at: string
-  is_internal: boolean
+  actor?: Actor
 }
 
 // DTO for creating a new activity
@@ -83,4 +81,5 @@ export interface CreateActivityDTO {
   actor_id: string
   activity_type: ActivityType
   content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent | TagChangeContent
+  mentioned_user_ids?: string[]
 } 

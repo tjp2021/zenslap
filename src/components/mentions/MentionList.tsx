@@ -1,76 +1,64 @@
 'use client'
 
-import { Command } from '@/components/ui/command'
-import { Badge } from '@/components/ui/badge'
-import { UserRole } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-interface StaffUser {
-  id: string
-  email: string
-  role: UserRole
-}
-
 interface MentionListProps {
-  suggestions: StaffUser[]
+  suggestions: Array<{
+    id: string
+    email: string
+    role: string
+  }>
   isLoading: boolean
-  selectedIndex: number
-  onSelect: (user: StaffUser) => void
+  onSelect: (user: { id: string; email: string; role: string }) => void
   className?: string
 }
 
 export function MentionList({
   suggestions,
   isLoading,
-  selectedIndex,
   onSelect,
   className
 }: MentionListProps) {
   if (isLoading) {
     return (
-      <Command className={cn('mention-list', className)}>
-        <div className="p-4 text-sm text-muted-foreground text-center">
-          Loading suggestions...
+      <div className={cn('bg-white p-2 rounded-md', className)}>
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900" />
         </div>
-      </Command>
+      </div>
     )
   }
 
-  if (suggestions.length === 0) {
+  if (!suggestions.length) {
     return (
-      <Command className={cn('mention-list', className)}>
-        <div className="p-4 text-sm text-muted-foreground text-center">
-          No matching users found
+      <div className={cn('bg-white p-2 rounded-md', className)}>
+        <div className="p-2 text-sm text-gray-500">
+          No users found
         </div>
-      </Command>
+      </div>
     )
   }
 
   return (
-    <Command className={cn('mention-list', className)}>
-      <div
-        role="listbox"
-        aria-label="User mentions"
-        className="max-h-[200px] overflow-y-auto"
-      >
-        {suggestions.map((user, index) => (
-          <div
-            key={user.id}
-            role="option"
-            aria-selected={index === selectedIndex}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 text-sm cursor-pointer',
-              index === selectedIndex ? 'bg-accent' : 'hover:bg-accent/50'
-            )}
-            onClick={() => onSelect(user)}
-          >
-            <span className="flex-1">{user.email}</span>
-            <Badge variant="secondary" className="text-xs">
-              {user.role}
-            </Badge>
-          </div>
-        ))}
-      </div>
-    </Command>
+    <div 
+      className={cn('bg-white rounded-md overflow-hidden', className)}
+      role="listbox"
+      aria-label="User mentions"
+    >
+      {suggestions.map((user, index) => (
+        <button
+          key={user.id}
+          role="option"
+          className={cn(
+            'w-full text-left px-4 py-2 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none',
+            'flex items-center justify-between gap-2'
+          )}
+          onClick={() => onSelect(user)}
+        >
+          <span>{user.email}</span>
+          <span className="text-xs text-gray-500 capitalize">{user.role}</span>
+        </button>
+      ))}
+    </div>
   )
 } 

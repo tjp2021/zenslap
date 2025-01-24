@@ -97,15 +97,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "notifications_activity_id_fkey"
-            columns: ["activity_id"]
-            isOneToOne: false
-            referencedRelation: "ticket_activities"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -138,6 +130,7 @@ export type Database = {
           content: Json
           created_at: string
           id: string
+          mentioned_user_ids: string[] | null
           ticket_id: string
         }
         Insert: {
@@ -146,6 +139,7 @@ export type Database = {
           content: Json
           created_at?: string
           id?: string
+          mentioned_user_ids?: string[] | null
           ticket_id: string
         }
         Update: {
@@ -154,16 +148,10 @@ export type Database = {
           content?: Json
           created_at?: string
           id?: string
+          mentioned_user_ids?: string[] | null
           ticket_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "ticket_activities_actor_id_fkey"
-            columns: ["actor_id"]
-            isOneToOne: false
-            referencedRelation: "users_secure"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "ticket_activities_ticket_id_fkey"
             columns: ["ticket_id"]
