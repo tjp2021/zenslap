@@ -1,7 +1,8 @@
-import { Bell, Plus, Search } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SignOutButton } from '@/components/auth/SignOutButton'
 import { AgentAndAbove } from '@/components/auth/PermissionGate'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 import Link from 'next/link'
 
 export function TopNav() {
@@ -24,9 +25,7 @@ export function TopNav() {
           <Button variant="ghost" size="icon">
             <Search className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon">
-            <Bell className="h-4 w-4" />
-          </Button>
+          <NotificationBell />
           <SignOutButton />
         </div>
       </div>

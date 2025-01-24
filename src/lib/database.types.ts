@@ -37,39 +37,32 @@ export type Database = {
       internal_notes: {
         Row: {
           content: string
-          created_at: string
+          created_at: string | null
           created_by: string
           id: string
           mentions: string[] | null
           ticket_id: string
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
           content: string
-          created_at?: string
+          created_at?: string | null
           created_by: string
           id?: string
           mentions?: string[] | null
           ticket_id: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
           content?: string
-          created_at?: string
+          created_at?: string | null
           created_by?: string
           id?: string
           mentions?: string[] | null
           ticket_id?: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "fk_ticket"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "internal_notes_ticket_id_fkey"
             columns: ["ticket_id"]
@@ -79,147 +72,96 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      notifications: {
         Row: {
-          email: string | null
-          id: string
-          role: string | null
-        }
-        Insert: {
-          email?: string | null
-          id: string
-          role?: string | null
-        }
-        Update: {
-          email?: string | null
-          id?: string
-          role?: string | null
-        }
-        Relationships: []
-      }
-      quick_responses: {
-        Row: {
-          category_id: string
-          content: string
+          activity_id: string
           created_at: string
-          created_by: string
           id: string
-          title: string
+          read: boolean
           updated_at: string
-          variables: Json
+          user_id: string
         }
         Insert: {
-          category_id: string
-          content: string
+          activity_id: string
           created_at?: string
-          created_by: string
           id?: string
-          title: string
+          read?: boolean
           updated_at?: string
-          variables?: Json
+          user_id: string
         }
         Update: {
-          category_id?: string
-          content?: string
+          activity_id?: string
           created_at?: string
-          created_by?: string
           id?: string
-          title?: string
+          read?: boolean
           updated_at?: string
-          variables?: Json
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "quick_responses_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: "notifications_activity_id_fkey"
+            columns: ["activity_id"]
             isOneToOne: false
-            referencedRelation: "response_categories"
+            referencedRelation: "ticket_activities"
             referencedColumns: ["id"]
           },
         ]
       }
-      response_categories: {
+      profiles: {
         Row: {
-          created_at: string
-          created_by: string
-          description: string | null
+          created_at: string | null
+          email: string | null
           id: string
-          name: string
+          role: string | null
+          updated_at: string | null
         }
         Insert: {
-          created_at?: string
-          created_by: string
-          description?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          description?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      tags: {
-        Row: {
-          color: string | null
-          created_at: string
+          created_at?: string | null
+          email?: string | null
           id: string
-          name: string
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name: string
+          role?: string | null
+          updated_at?: string | null
         }
         Update: {
-          color?: string | null
-          created_at?: string
+          created_at?: string | null
+          email?: string | null
           id?: string
-          name?: string
+          role?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
       ticket_activities: {
         Row: {
           activity_type: string
-          actor_id: string
+          actor_id: string | null
           content: Json
           created_at: string
           id: string
-          is_internal: boolean | null
-          parent_id: string | null
           ticket_id: string
         }
         Insert: {
           activity_type: string
-          actor_id: string
+          actor_id?: string | null
           content: Json
           created_at?: string
           id?: string
-          is_internal?: boolean | null
-          parent_id?: string | null
           ticket_id: string
         }
         Update: {
           activity_type?: string
-          actor_id?: string
+          actor_id?: string | null
           content?: Json
           created_at?: string
           id?: string
-          is_internal?: boolean | null
-          parent_id?: string | null
           ticket_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "ticket_activities_parent_id_fkey"
-            columns: ["parent_id"]
+            foreignKeyName: "ticket_activities_actor_id_fkey"
+            columns: ["actor_id"]
             isOneToOne: false
-            referencedRelation: "ticket_activities"
+            referencedRelation: "users_secure"
             referencedColumns: ["id"]
           },
           {
@@ -231,155 +173,45 @@ export type Database = {
           },
         ]
       }
-      ticket_history: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          field: string
-          id: string
-          new_value: string | null
-          old_value: string | null
-          ticket_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          field: string
-          id?: string
-          new_value?: string | null
-          old_value?: string | null
-          ticket_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          field?: string
-          id?: string
-          new_value?: string | null
-          old_value?: string | null
-          ticket_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_history_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ticket_messages: {
-        Row: {
-          content: string
-          created_at: string
-          created_by: string
-          id: string
-          ticket_id: string
-          type: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          created_by: string
-          id?: string
-          ticket_id: string
-          type: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          created_by?: string
-          id?: string
-          ticket_id?: string
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_ticket"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ticket_messages_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ticket_tags: {
-        Row: {
-          created_at: string
-          tag_id: string
-          ticket_id: string
-        }
-        Insert: {
-          created_at?: string
-          tag_id: string
-          ticket_id: string
-        }
-        Update: {
-          created_at?: string
-          tag_id?: string
-          ticket_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_tags_tag_id_fkey"
-            columns: ["tag_id"]
-            isOneToOne: false
-            referencedRelation: "tags"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ticket_tags_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tickets: {
         Row: {
           assignee: string | null
-          created_at: string
-          created_by: string
-          description: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
           id: string
-          metadata: Json
+          metadata: Json | null
           priority: string
           status: string
+          tags: string[] | null
           title: string
-          updated_at: string
+          updated_at: string | null
         }
         Insert: {
           assignee?: string | null
-          created_at?: string
-          created_by: string
-          description: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
           id?: string
-          metadata?: Json
+          metadata?: Json | null
           priority?: string
           status?: string
+          tags?: string[] | null
           title: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Update: {
           assignee?: string | null
-          created_at?: string
-          created_by?: string
-          description?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
           id?: string
-          metadata?: Json
+          metadata?: Json | null
           priority?: string
           status?: string
+          tags?: string[] | null
           title?: string
-          updated_at?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -526,3 +358,4 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
     ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
