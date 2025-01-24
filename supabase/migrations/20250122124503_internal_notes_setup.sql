@@ -17,27 +17,31 @@ CREATE INDEX IF NOT EXISTS idx_internal_notes_mentions ON internal_notes USING G
 -- Enable RLS
 ALTER TABLE internal_notes ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "view_internal_notes" ON internal_notes;
+DROP POLICY IF EXISTS "create_internal_notes" ON internal_notes;
+
 -- Create policies
-CREATE POLICY "view_internal_notes" ON internal_notes
+CREATE POLICY "staff_view_internal_notes" ON internal_notes
     FOR SELECT
     TO authenticated
     USING (
-        -- Users can view notes for tickets they have access to
+        -- Only staff (admin/agent) can view internal notes
         EXISTS (
-            SELECT 1 FROM tickets t
-            WHERE t.id = internal_notes.ticket_id
-            AND (t.assignee = auth.uid() OR t.assignee IS NULL)
+            SELECT 1 FROM users_secure
+            WHERE id = auth.uid()
+            AND role IN ('admin', 'agent')
         )
     );
 
-CREATE POLICY "create_internal_notes" ON internal_notes
+CREATE POLICY "staff_create_internal_notes" ON internal_notes
     FOR INSERT
     TO authenticated
     WITH CHECK (
-        -- Users can create notes for tickets they have access to
+        -- Only staff (admin/agent) can create internal notes
         EXISTS (
-            SELECT 1 FROM tickets t
-            WHERE t.id = ticket_id
-            AND (t.assignee = auth.uid() OR t.assignee IS NULL)
+            SELECT 1 FROM users_secure
+            WHERE id = auth.uid()
+            AND role IN ('admin', 'agent')
         )
     ); 

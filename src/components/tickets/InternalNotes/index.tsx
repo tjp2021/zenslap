@@ -12,6 +12,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/types/supabase'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { useRoleAccess } from '@/hooks/useRoleAccess'
 
 interface User {
   id: string
@@ -22,24 +23,23 @@ interface User {
 interface InternalNotesProps {
   ticketId: string
   userId: string
-  userRole: UserRole
-  readOnly?: boolean
   className?: string
 }
 
 type CreateNoteInput = z.infer<typeof createInternalNoteSchema>
 
-export function InternalNotes({ ticketId, userId, userRole, readOnly = false, className }: InternalNotesProps) {
+export function InternalNotes({ ticketId, userId, className }: InternalNotesProps) {
   const queryClient = useQueryClient()
   const supabase = createClientComponentClient<Database>()
-  const isStaff = userRole === UserRole.ADMIN || userRole === UserRole.AGENT
+  const { isAdmin, isAgent, role } = useRoleAccess()
+  const isStaff = isAdmin || isAgent
 
   // Debug mount/unmount
   useEffect(() => {
     console.log('🔄 [LIFECYCLE] InternalNotes mounted', {
       ticketId,
       userId,
-      userRole,
+      isStaff,
       timestamp: new Date().toISOString()
     })
     return () => {
@@ -48,7 +48,12 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
         timestamp: new Date().toISOString()
       })
     }
-  }, [ticketId, userId, userRole])
+  }, [ticketId, userId, isStaff])
+
+  // Return null for non-staff users
+  if (!isStaff) {
+    return null
+  }
 
   // Fetch notes for this ticket
   const { data: notes, isLoading: notesLoading, error: notesError } = useQuery({
@@ -113,39 +118,6 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
     }
   })
 
-  // Update note mutation
-  const { mutate: updateNote, isPending: isUpdating } = useMutation({
-    mutationFn: async ({ id, content }: { id: string, content: string }) => {
-      const { data, error } = await supabase
-        .from('internal_notes')
-        .update({ content })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) throw error
-      return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
-    }
-  })
-
-  // Delete note mutation
-  const { mutate: deleteNote, isPending: isDeleting } = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('internal_notes')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notes', ticketId] })
-    }
-  })
-
   const handleCreateNote = useCallback(async (content: string, mentions?: string[]) => {
     console.log('🎯 [ACTION] handleCreateNote called:', { content, mentions })
     await createNote({ 
@@ -154,14 +126,6 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
       mentions
     })
   }, [createNote, ticketId])
-
-  const handleUpdateNote = useCallback(async (id: string, content: string) => {
-    await updateNote({ id, content })
-  }, [updateNote])
-
-  const handleDeleteNote = useCallback(async (id: string) => {
-    await deleteNote(id)
-  }, [deleteNote])
 
   if (notesError || usersError) {
     console.error('❌ [ERROR] Component error:', { notesError, usersError })
@@ -180,31 +144,19 @@ export function InternalNotes({ ticketId, userId, userRole, readOnly = false, cl
     timestamp: new Date().toISOString()
   })
 
-  // Regular user view - no access
-  if (!isStaff) {
-    return null
-  }
-
-  // Staff view - show notes with tabs
   return (
     <div className={className}>
       {isLoading && <LoadingOverlay />}
-      {!readOnly && (
-        <NoteForm
-          onSubmit={handleCreateNote}
-          users={users || []}
-          currentUserRole={userRole}
-          isLoading={isUpdating}
-          className="mb-4"
-        />
-      )}
+      <NoteForm
+        onSubmit={handleCreateNote}
+        users={users || []}
+        currentUserRole={role || UserRole.USER}
+        isLoading={isLoading}
+        className="mb-4"
+      />
       <NoteList
         notes={notes || []}
         currentUserId={userId}
-        onUpdate={!readOnly ? handleUpdateNote : undefined}
-        onDelete={!readOnly ? handleDeleteNote : undefined}
-        isUpdating={isUpdating}
-        isDeleting={isDeleting}
       />
     </div>
   )

@@ -14,9 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Ticket, UserRole, TICKET_STATUSES, TICKET_PRIORITIES, UpdateTicketDTO } from '@/lib/types'
+import { Ticket, UserRole, TICKET_STATUSES, TICKET_PRIORITIES, UpdateTicketDTO, User } from '@/lib/types'
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Trash2, Clock, Tag, User, MessageSquare, CheckCircle2, XCircle } from "lucide-react"
+import { AlertCircle, Trash2, Clock, Tag, User as LucideUser, MessageSquare, CheckCircle2, XCircle } from "lucide-react"
 import { updateTicketSchema } from '@/lib/validation/tickets'
 import { useAuth } from '@/hooks/useAuth'
 import { can, TicketActions } from '@/lib/permissions'
@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils'
 import { CommentHistory } from './CommentHistory'
 import { useStaffUsers } from '@/hooks/useStaffUsers'
 import { useQueryClient } from '@tanstack/react-query'
+import React from 'react'
 
 interface TicketHistory {
   id: string
@@ -144,19 +145,20 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   // Debug staff users
   useEffect(() => {
     console.log('🔥 TICKET DETAILS: Staff users state:', {
-      users: staffUsers,
-      loading: staffLoading,
-      error: staffError
-    })
-  }, [staffUsers, staffLoading, staffError])
-
-  // Debug staff users on every render
-  useEffect(() => {
-    console.log('🔥 TICKET DETAILS: Staff users updated:', {
       count: staffUsers?.length || 0,
       loading: staffLoading,
       error: staffError,
       users: staffUsers
+    })
+  }, [staffUsers, staffLoading, staffError])
+
+  // Debug effect to track staff users state
+  useEffect(() => {
+    console.log('🔍 DEBUG: Staff users state changed:', {
+      loading: staffLoading,
+      userCount: staffUsers?.length || 0,
+      error: staffError,
+      stack: new Error().stack
     })
   }, [staffUsers, staffLoading, staffError])
 
@@ -390,7 +392,31 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   }, [id, user])
 
   // Wrap the form in a memo to prevent unnecessary re-renders
-  const EditForm = useMemo(() => {
+  const TicketForm = React.memo(function TicketForm({ 
+    isEditing,
+    ticket,
+    staffUsers,
+    canEditTicket,
+    handleFieldChange,
+    hasErrors,
+    formState,
+    isSubmitting,
+    startEditing,
+    cancelEditing,
+    handleSubmit
+  }: {
+    isEditing: boolean;
+    ticket: Ticket | null;
+    staffUsers: User[] | undefined;
+    canEditTicket: (field?: keyof Ticket) => boolean;
+    handleFieldChange: (field: keyof UpdateTicketDTO) => void;
+    hasErrors: boolean;
+    formState: FormState;
+    isSubmitting: boolean;
+    startEditing: () => void;
+    cancelEditing: () => void;
+    handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  }) {
     console.log('🔍 Rendering form with editing:', isEditing)
     if (!ticket) return null
 
@@ -605,7 +631,7 @@ export function TicketDetails({ id }: TicketDetailsProps) {
             </Select>
           ) : (
             <div className="flex items-center gap-2 text-sm text-gray-700">
-              <User className="h-4 w-4" />
+              <LucideUser className="h-4 w-4" />
               <span>
                 {staffLoading ? (
                   "Loading..."
@@ -641,24 +667,32 @@ export function TicketDetails({ id }: TicketDetailsProps) {
         )}
       </form>
     )
-  }, [
-    isEditing,
-    ticket,
-    staffUsers,
-    canEditTicket,
-    handleFieldChange,
-    hasErrors,
-    formState.validationErrors,
-    isSubmitting,
-    startEditing,
-    cancelEditing
-  ])
+  }, (prevProps, nextProps) => {
+    // Only re-render if these actually changed
+    return (
+      prevProps.isEditing === nextProps.isEditing &&
+      prevProps.ticket === nextProps.ticket &&
+      prevProps.handleSubmit === nextProps.handleSubmit
+    )
+  })
 
   return (
     <div className="grid gap-6">
       <div className="col-span-1">
         <Card className="p-6">
-          {EditForm}
+          <TicketForm
+            isEditing={isEditing}
+            ticket={ticket}
+            staffUsers={staffUsers}
+            canEditTicket={canEditTicket}
+            handleFieldChange={handleFieldChange}
+            hasErrors={hasErrors}
+            formState={formState}
+            isSubmitting={isSubmitting}
+            startEditing={startEditing}
+            cancelEditing={cancelEditing}
+            handleSubmit={handleSubmit}
+          />
         </Card>
 
         {/* Comment History Section */}

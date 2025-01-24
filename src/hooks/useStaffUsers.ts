@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import useSWR from 'swr'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { UserRole } from '@/lib/types'
+import { useSession } from './useSession'
 
 interface StaffUser {
   id: string
@@ -11,22 +12,21 @@ interface StaffUser {
 }
 
 export function useStaffUsers() {
-  const [users, setUsers] = useState<StaffUser[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<Error | null>(null)
   const supabase = createClientComponentClient()
+  const { session } = useSession()
 
-  const fetchStaffUsers = useCallback(async () => {
-    try {
+  console.log('🔍 DEBUG: useStaffUsers hook called')
+
+  const { data, error } = useSWR(
+    // Only fetch if we have a session, and use session ID as part of key
+    session ? ['staff-users', session.user.id] : null,
+    async () => {
       console.log('🔍 DEBUG: Starting staff users fetch')
-      setIsLoading(true)
-      setError(null)
-
+      
       // First verify session with app_metadata
-      const { data: { session } } = await supabase.auth.getSession()
       console.log('🔍 DEBUG: Current session:', {
         user: session?.user?.email,
-        role: session?.user?.app_metadata?.role,
+        role: session?.user?.user_metadata?.role,
         id: session?.user?.id,
         metadata: session?.user?.app_metadata
       })
@@ -35,7 +35,7 @@ export function useStaffUsers() {
       const roles = ['admin', 'agent']
       console.log('🔍 DEBUG: Querying for roles:', roles)
 
-      const { data, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from('users_secure')
         .select('id, email, role')
         .in('role', roles)
@@ -43,32 +43,26 @@ export function useStaffUsers() {
 
       // Detailed response logging
       console.log('🔍 DEBUG: Query complete:', {
-        success: !fetchError,
-        error: fetchError?.message,
-        errorCode: fetchError?.code,
+        success: !error,
+        error: error?.message,
+        errorCode: error?.code,
         dataReceived: !!data,
         userCount: data?.length || 0,
         firstUser: data?.[0],
         roles: data?.map(u => u.role)
       })
 
-      if (fetchError) throw fetchError
-      
-      setUsers(data || [])
-      console.log('🔍 DEBUG: State updated with users:', data?.length || 0)
-    } catch (err) {
-      console.error('🔍 DEBUG: Error in useStaffUsers:', err)
-      setError(err as Error)
-      setUsers([])
-    } finally {
-      setIsLoading(false)
+      if (error) throw error
+      return data || []
+    }, {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000 // Cache for 1 minute
     }
-  }, [supabase])
+  )
 
-  useEffect(() => {
-    console.log('🔍 DEBUG: useStaffUsers mounted, fetching...')
-    fetchStaffUsers()
-  }, [fetchStaffUsers])
-
-  return { users, isLoading, error, refetch: fetchStaffUsers }
+  return {
+    users: data || [],
+    isLoading: !error && !data,
+    error
+  }
 } 

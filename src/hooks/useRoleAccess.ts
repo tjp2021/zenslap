@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useSession } from '@/hooks/useSession'
 import { UserRole } from '@/lib/types'
+import { useAtom } from 'jotai'
+import { roleAtom } from './useSession'
 
 interface RoleAccess {
   hasRole: (roles: UserRole | UserRole[]) => boolean
@@ -14,64 +16,33 @@ interface RoleAccess {
 }
 
 export function useRoleAccess(): RoleAccess {
-  const { session, isLoading } = useSession()
-  const role = session?.user?.user_metadata?.role as UserRole | null
+  const { isLoading } = useSession()
+  const [role] = useAtom(roleAtom)
 
-  // Debug logging
-  useEffect(() => {
-    console.log('🔑 useRoleAccess Debug:', {
-      session: {
-        id: session?.user?.id,
-        email: session?.user?.email,
-        metadata: session?.user?.user_metadata,
-      },
-      role,
-      isLoading
-    })
-  }, [session, role, isLoading])
+  // Memoize role checks
+  const roleChecks = useMemo(() => {
+    const isAdmin = role === UserRole.ADMIN
+    const isAgent = role === UserRole.AGENT
+    const isUser = role === UserRole.USER
 
-  const hasRole = useCallback((requiredRoles: UserRole | UserRole[]): boolean => {
-    if (!role) {
-      console.log('❌ hasRole check failed: No role found')
-      return false
+    const hasRole = (requiredRoles: UserRole | UserRole[]): boolean => {
+      if (!role) return false
+      if (isAdmin) return true
+
+      const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles]
+      return roles.includes(role)
     }
-    
-    const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles]
-    
-    // Debug the actual values
-    console.log('🔍 Role Check Values:', {
-      userRole: role,
-      requiredRoles: roles,
-      roleType: typeof role,
-      requiredType: roles.map(r => typeof r)
-    })
-    
-    // Admin has access to everything
-    if (role === UserRole.ADMIN) {
-      console.log('✅ hasRole check passed: User is admin')
-      return true
+
+    return {
+      hasRole,
+      isAdmin,
+      isAgent,
+      isUser
     }
-    
-    // Convert role strings to lowercase for comparison
-    const normalizedRole = role.toLowerCase()
-    const normalizedRequiredRoles = roles.map(r => 
-      typeof r === 'string' ? r.toLowerCase() : r
-    )
-    
-    const hasAccess = normalizedRequiredRoles.includes(normalizedRole)
-    console.log('🔍 hasRole check:', { 
-      normalizedRole, 
-      normalizedRequiredRoles, 
-      hasAccess 
-    })
-    return hasAccess
   }, [role])
 
   return {
-    hasRole,
-    isAdmin: role === UserRole.ADMIN,
-    isAgent: role === UserRole.AGENT,
-    isUser: role === UserRole.USER,
+    ...roleChecks,
     role,
     isLoading
   }

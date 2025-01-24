@@ -5,9 +5,20 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { type Session } from '@supabase/supabase-js'
 import { atom, useAtom } from 'jotai'
+import { UserRole } from '@/lib/types'
 
+// Core atoms
 const sessionAtom = atom<Session | null>(null)
 const loadingAtom = atom<boolean>(true)
+
+// Derived role atom
+export const roleAtom = atom((get) => {
+  const session = get(sessionAtom)
+  return (session?.user?.user_metadata?.role as UserRole) || null
+})
+
+// Initialize session once at app level
+let initialized = false
 
 export function useSession() {
   const [session, setSession] = useAtom(sessionAtom)
@@ -16,6 +27,10 @@ export function useSession() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
+    if (initialized) return
+
+    initialized = true
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)

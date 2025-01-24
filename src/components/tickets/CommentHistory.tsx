@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '@/types/supabase'
@@ -50,6 +50,15 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
   const isStaff = hasRole([UserRole.ADMIN, UserRole.AGENT] as UserRole[])
   const { activities: comments, isLoading, addActivity: createComment, deleteActivity: deleteComment } = useTicketActivities(ticketId)
   const { users: staffUsers } = useStaffUsers()
+
+  // Filter comments based on user role
+  const visibleComments = useMemo(() => {
+    if (!comments) return []
+    // Staff can see everything
+    if (isStaff) return comments
+    // Regular users can only see non-internal comments
+    return comments.filter(comment => !comment.is_internal)
+  }, [comments, isStaff])
 
   // Initialize mention handling
   const {
@@ -138,9 +147,6 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
       })
     }
   }
-
-  // Remove client-side filtering - we're handling this in the query
-  const visibleComments = comments
 
   return (
     <Card className="p-6">
