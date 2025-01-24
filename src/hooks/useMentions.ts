@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useReducer, useRef } from 'react'
+import { useCallback, useReducer, useRef, useMemo } from 'react'
 import { useDebounce } from '@/hooks/useDebounce'
 import { MentionData } from '@/lib/types/activities'
 import { useStaffUsers } from '@/hooks/useStaffUsers'
@@ -82,26 +82,19 @@ export function useMentions(options: UseMentionsOptions = {}) {
   const [state, dispatch] = useReducer(mentionReducer, initialState)
   const { users: staffUsers, isLoading } = useStaffUsers()
   
-  // Filter staff users based on search term
-  const suggestions = useCallback(() => {
+  // Memoize staff users to prevent unnecessary re-renders
+  const memoizedStaffUsers = useMemo(() => staffUsers || [], [staffUsers])
+  
+  // Filter staff users based on search term - memoized to prevent recalculation
+  const suggestions = useMemo(() => {
     if (!state.searchTerm) return []
     
-    // Ensure we have an array to work with
-    const users = staffUsers || []
-    console.log('🔍 DEBUG Mentions:', { 
-      searchTerm: state.searchTerm,
-      staffUsers: users,
-      filtered: users.filter(user => 
-        user.email.toLowerCase().includes(state.searchTerm.toLowerCase())
-      )
-    })
-    
-    return users
+    return memoizedStaffUsers
       .filter(user => 
         user.email.toLowerCase().includes(state.searchTerm.toLowerCase())
       )
       .slice(0, maxSuggestions)
-  }, [state.searchTerm, staffUsers, maxSuggestions])
+  }, [state.searchTerm, memoizedStaffUsers, maxSuggestions])
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (!state.isActive) return
@@ -123,7 +116,7 @@ export function useMentions(options: UseMentionsOptions = {}) {
       case 'Tab':
         if (state.isActive) {
           event.preventDefault()
-          const filtered = suggestions()
+          const filtered = suggestions
           if (filtered[state.selectedIndex]) {
             options.onMention?.({
               id: crypto.randomUUID(),
@@ -138,7 +131,6 @@ export function useMentions(options: UseMentionsOptions = {}) {
   }, [state, suggestions, options])
 
   const handleInput = useCallback((text: string, cursorPosition: number) => {
-    // Check for @ trigger
     const beforeCursor = text.slice(0, cursorPosition)
     const lastAtSymbol = beforeCursor.lastIndexOf('@')
     
@@ -174,8 +166,8 @@ export function useMentions(options: UseMentionsOptions = {}) {
     isActive: state.isActive,
     searchTerm: state.searchTerm,
     selectedIndex: state.selectedIndex,
-    suggestions: suggestions(),
-    isLoading: isLoading,
+    suggestions,
+    isLoading,
     handlers: {
       onKeyDown: handleKeyDown,
       onInput: handleInput,

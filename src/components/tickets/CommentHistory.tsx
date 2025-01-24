@@ -220,18 +220,11 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
         {isLoading ? (
           <p className="text-center text-gray-500">Loading comments...</p>
         ) : visibleComments?.length ? (
-          visibleComments.map((comment) => {
+          visibleComments.map(comment => {
             // Parse the content properly - content only has the text
             const content = typeof comment.content === 'string' 
               ? JSON.parse(comment.content) 
               : comment.content
-            
-            // Debug the actual data structure
-            console.log('🔍 Comment Structure:', {
-              id: comment.id,
-              is_internal: comment.is_internal, // THIS is where it actually is
-              content
-            })
             
             const userEmail = comment.actor?.email || 'Unknown User'
             // Use the root level is_internal flag

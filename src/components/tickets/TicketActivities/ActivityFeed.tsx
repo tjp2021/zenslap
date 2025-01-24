@@ -12,12 +12,12 @@ interface ActivityFeedProps {
 }
 
 export function ActivityFeed({ ticketId }: ActivityFeedProps) {
-  console.log(`
-🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍
-                     ACTIVITY FEED DEBUG INFO
-🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍
-TicketID: ${ticketId}
-  `)
+  // Only log in development and only once per mount
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 ActivityFeed mounted for ticket:', ticketId)
+    }
+  }, [ticketId])
   
   const supabase = createClientComponentClient<Database>()
 
@@ -26,12 +26,9 @@ TicketID: ${ticketId}
     queryKey: ['ticket-activities', ticketId],
     queryFn: async () => {
       try {
-        console.log(`
-╔═══════════════════════════════════════════════════════╗
-║                FETCHING ACTIVITIES                     ║
-╚═══════════════════════════════════════════════════════╝
-Ticket ID: ${ticketId}
-        `)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 Fetching activities for ticket:', ticketId)
+        }
 
         const { data, error } = await supabase
           .from('ticket_activities')
@@ -47,41 +44,33 @@ Ticket ID: ${ticketId}
           .order('created_at', { ascending: false })
 
         if (error) {
-          console.error(`
-🚨 QUERY ERROR 🚨
-${JSON.stringify(error, null, 2)}
-          `)
           throw error
         }
 
-        console.log(`
-✨ QUERY SUCCESS ✨
-Found ${data?.length || 0} activities
-${JSON.stringify(data, null, 2)}
-        `)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 Found activities:', data?.length || 0)
+        }
 
         return data || []
       } catch (err) {
-        console.error(`
-❌ UNEXPECTED ERROR ❌
-${err instanceof Error ? err.message : JSON.stringify(err)}
-        `)
+        console.error('Failed to fetch activities:', err)
         throw err
       }
     },
-    staleTime: 1000, // Consider data fresh for 1 second
-    refetchOnWindowFocus: true // Refetch when window regains focus
+    staleTime: 1000,
+    refetchOnWindowFocus: true
   })
 
-  // Debug logging for component state
+  // Debug logging for component state - only in development and only when values change
   useEffect(() => {
-    console.log(`
-⚡️ ACTIVITY FEED STATE CHANGED ⚡️
-Loading: ${isLoading}
-Error: ${error ? JSON.stringify(error) : 'None'}
-Activities: ${activities?.length || 0}
-    `)
-  }, [isLoading, error, activities])
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 ActivityFeed state:', {
+        loading: isLoading,
+        error: error ? 'Error occurred' : 'None',
+        activityCount: activities?.length || 0
+      })
+    }
+  }, [isLoading, error, activities?.length])
 
   if (isLoading) {
     return <div className="text-sm text-gray-500">Loading activity history...</div>
@@ -97,14 +86,15 @@ Activities: ${activities?.length || 0}
 
   return (
     <div className="space-y-4">
-      {activities.map((activity) => {
-        console.log(`
-📝 RENDERING ACTIVITY:
-ID: ${activity.id}
-Type: ${activity.activity_type}
-Actor: ${activity.actor?.email}
-Content: ${JSON.stringify(activity.content, null, 2)}
-      `)
+      {activities.map(activity => {
+        // Move debug logging to development only
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 Rendering activity:', {
+            id: activity.id,
+            type: activity.activity_type,
+            actor: activity.actor?.email
+          })
+        }
         
         return (
           <div key={activity.id} className="flex items-start gap-3 text-sm">

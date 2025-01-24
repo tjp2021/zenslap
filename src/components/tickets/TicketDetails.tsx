@@ -42,6 +42,9 @@ import { CommentHistory } from './CommentHistory'
 import { useStaffUsers } from '@/hooks/useStaffUsers'
 import { useQueryClient } from '@tanstack/react-query'
 import React from 'react'
+import { StaffUser } from '@/hooks/useStaffUsers'
+import { QueryClient } from '@tanstack/react-query'
+import { KeyedMutator } from 'swr'
 
 interface TicketHistory {
   id: string
@@ -110,6 +113,22 @@ function formReducer(state: FormState, action: FormAction): FormState {
   }
 }
 
+interface TicketFormProps {
+  isEditing: boolean;
+  ticket: Ticket | null;
+  staffUsers: StaffUser[] | undefined;
+  canEditTicket: (field?: keyof Ticket) => boolean;
+  handleFieldChange: (field: keyof UpdateTicketDTO) => void;
+  hasErrors: boolean;
+  formState: FormState;
+  isSubmitting: boolean;
+  startEditing: () => void;
+  cancelEditing: () => void;
+  handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  queryClient: QueryClient;
+  mutate: KeyedMutator<Ticket>;
+}
+
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
   const { user } = useAuth()
@@ -133,53 +152,32 @@ export function TicketDetails({ id }: TicketDetailsProps) {
   const isSubmitting = formState.status === 'submitting'
   const hasErrors = Object.keys(formState.validationErrors).length > 0
 
-  // Debug render cycle
+  // Consolidate all debug logging into a single effect
   useEffect(() => {
-    console.log('🔍 Component rendered with formState:', {
-      status: formState.status,
-      isEditing,
-      ticket: ticket?.id
-    })
-  }, [formState, isEditing, ticket?.id])
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 TicketDetails Debug:', {
+        formState: {
+          status: formState.status,
+          isEditing,
+          ticketId: ticket?.id
+        },
+        staffState: {
+          count: staffUsers?.length || 0,
+          loading: staffLoading,
+          error: staffError
+        }
+      })
+    }
+  }, [formState.status, isEditing, ticket?.id, staffUsers, staffLoading, staffError])
 
-  // Debug staff users
-  useEffect(() => {
-    console.log('🔥 TICKET DETAILS: Staff users state:', {
-      count: staffUsers?.length || 0,
-      loading: staffLoading,
-      error: staffError,
-      users: staffUsers
-    })
-  }, [staffUsers, staffLoading, staffError])
-
-  // Debug effect to track staff users state
-  useEffect(() => {
-    console.log('🔍 DEBUG: Staff users state changed:', {
-      loading: staffLoading,
-      userCount: staffUsers?.length || 0,
-      error: staffError,
-      stack: new Error().stack
-    })
-  }, [staffUsers, staffLoading, staffError])
-
-  // Memoized state transitions
+  // Remove individual debug effects
   const startEditing = useCallback(() => {
-    console.log('🔍 startEditing called')
     dispatch({ type: 'START_EDITING' })
   }, [])
 
   const cancelEditing = useCallback(() => {
-    console.log('🔍 cancelEditing called')
     dispatch({ type: 'CANCEL_EDITING' })
   }, [])
-
-  // Track form state changes
-  useEffect(() => {
-    if (isEditing) {
-      console.log('🔍 Form entered edit mode')
-      return () => console.log('🔍 Form leaving edit mode')
-    }
-  }, [isEditing])
 
   const handleFieldChange = useCallback((field: keyof UpdateTicketDTO) => {
     dispatch({ type: 'MARK_FIELD_DIRTY', field })
@@ -221,16 +219,13 @@ export function TicketDetails({ id }: TicketDetailsProps) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    console.log('🔍 Form Submit - Starting submission')
     
     if (!ticket || formState.status === 'submitting' || !isEditing) {
-      console.log('🔍 Form Submit - Early return:', { ticket: !!ticket, status: formState.status, isEditing })
       return
     }
 
     // Don't submit if no fields were changed
     if (formState.dirtyFields.size === 0) {
-      console.log('🔍 Form Submit - No fields changed')
       dispatch({ type: 'CANCEL_EDITING' })
       return
     }
@@ -274,12 +269,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
       updates.assignee = assigneeValue === 'unassigned' ? null : assigneeValue
     }
 
-    console.log('🔍 Form Submit - Collected updates:', updates)
-    console.log('🔍 Form Submit - Dirty fields:', Array.from(formState.dirtyFields))
-
     try {
       const validatedData = updateTicketSchema.parse(updates)
-      console.log('🔍 Form Submit - Sending to Supabase:', validatedData)
       
       const { data: updatedTicket, error: updateError } = await supabase
         .rpc('update_ticket_with_activity', {
@@ -288,19 +279,14 @@ export function TicketDetails({ id }: TicketDetailsProps) {
           p_actor_id: user?.id
         })
 
-      console.log('🔍 Form Submit - Supabase response:', { updatedTicket, error: updateError })
-
       if (updateError) throw updateError
 
       if (updatedTicket) {
-        console.log('🔍 Form Submit - Success:', updatedTicket)
         await mutate(updatedTicket as Ticket)
-        // Invalidate activities query to trigger refresh
         queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
         dispatch({ type: 'RESET' })
       }
     } catch (err: unknown) {
-      console.error('🔍 Form Submit - Error:', err)
       if (err && typeof err === 'object' && 'errors' in err && Array.isArray(err.errors)) {
         const errors: Record<string, string> = {}
         err.errors.forEach((error: { path: string[], message: string }) => {
@@ -341,6 +327,279 @@ export function TicketDetails({ id }: TicketDetailsProps) {
     if (!ticket || !user) return false
     return can(TicketActions.DELETE, user, ticket)
   }, [user, ticket])
+
+  // Memoize staff state once
+  const memoizedStaffState = useMemo(() => ({
+    users: staffUsers,
+    loading: staffLoading,
+    error: staffError
+  }), [staffUsers, staffLoading, staffError])
+
+  // Memoize comment history with proper deps
+  const memoizedCommentHistory = useMemo(() => {
+    if (!user) return null
+    return (
+      <div className="mt-6">
+        <Card className="p-6">
+          <CommentHistory ticketId={id} userId={user.id} />
+        </Card>
+      </div>
+    )
+  }, [id, user])
+
+  // Memoize the form component
+  const TicketForm = React.memo(function TicketForm(props: TicketFormProps) {
+    if (!props.ticket) return null
+
+    // Safely access ticket properties
+    const ticket = props.ticket
+    
+    return (
+      <form 
+        key={props.isEditing ? 'editing' : 'viewing'} 
+        onSubmit={props.handleSubmit} 
+        className="space-y-6"
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            {props.isEditing ? (
+              <Input
+                name="title"
+                defaultValue={ticket.title}
+                className="text-2xl font-semibold"
+                disabled={!props.canEditTicket('title')}
+                onChange={() => props.handleFieldChange('title')}
+              />
+            ) : (
+              <h1 className="text-2xl font-semibold">{ticket.title}</h1>
+            )}
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Clock className="h-4 w-4" />
+              <span>Created {formatDistanceToNow(new Date(ticket.created_at))} ago</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {!props.isEditing && isStaff && (
+              <Button
+                onClick={props.startEditing}
+                variant="outline"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Edit Ticket
+              </Button>
+            )}
+            {props.isEditing && (
+              <Button
+                onClick={props.cancelEditing}
+                variant="outline"
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Done Editing
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Status and Priority */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-gray-700">Status</h2>
+            {props.isEditing ? (
+              <Select
+                name="status"
+                defaultValue={ticket.status || "open"}
+                disabled={!props.canEditTicket('status')}
+                onValueChange={(value) => {
+                  props.handleFieldChange('status')
+                  // Make immediate update using RPC function
+                  const updates: Partial<UpdateTicketDTO> = { 
+                    id,
+                    status: value as typeof TICKET_STATUSES[number]
+                  }
+                  supabase
+                    .rpc('update_ticket_with_activity', {
+                      p_ticket_id: id,
+                      p_updates: updates,
+                      p_actor_id: user?.id
+                    })
+                    .then(({ data, error }) => {
+                      if (error) {
+                        console.error('Failed to update status:', error)
+                        return
+                      }
+                      props.handleSubmit(data as React.FormEvent<HTMLFormElement>)
+                      // Invalidate activities query to trigger refresh
+                      props.queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
+                    })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TICKET_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.replace('_', ' ').toLowerCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge className={cn("capitalize", getStatusColor(ticket.status))}>
+                {ticket.status.replace('_', ' ').toLowerCase()}
+              </Badge>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-gray-700">Priority</h2>
+            {props.isEditing ? (
+              <Select
+                name="priority"
+                defaultValue={ticket.priority || "medium"}
+                disabled={!props.canEditTicket('priority')}
+                onValueChange={(value) => {
+                  props.handleFieldChange('priority')
+                  // Make immediate update using RPC function
+                  const updates: Partial<UpdateTicketDTO> = { 
+                    id,
+                    priority: value as typeof TICKET_PRIORITIES[number]
+                  }
+                  supabase
+                    .rpc('update_ticket_with_activity', {
+                      p_ticket_id: id,
+                      p_updates: updates,
+                      p_actor_id: user?.id
+                    })
+                    .then(({ data, error }) => {
+                      if (error) {
+                        console.error('Failed to update priority:', error)
+                        return
+                      }
+                      props.handleSubmit(data as React.FormEvent<HTMLFormElement>)
+                      // Invalidate activities query to trigger refresh
+                      props.queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
+                    })
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TICKET_PRIORITIES.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {priority.toLowerCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge className={cn("capitalize", getPriorityColor(ticket.priority))}>
+                {ticket.priority.toLowerCase()}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Assignee */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
+          {props.isEditing ? (
+            <Select
+              name="assignee"
+              defaultValue={ticket.assignee || "unassigned"}
+              disabled={!props.canEditTicket('assignee') || memoizedStaffState.loading}
+              onValueChange={(value) => {
+                props.handleFieldChange('assignee')
+                // Make immediate update using RPC function
+                const updates: Partial<UpdateTicketDTO> = { 
+                  id,
+                  assignee: value === 'unassigned' ? null : value
+                }
+                supabase
+                  .rpc('update_ticket_with_activity', {
+                    p_ticket_id: id,
+                    p_updates: updates,
+                    p_actor_id: user?.id
+                  })
+                  .then(({ data, error }) => {
+                    if (error) {
+                      console.error('Failed to update assignee:', error)
+                      return
+                    }
+                    props.handleSubmit(data as React.FormEvent<HTMLFormElement>)
+                    // Invalidate activities query to trigger refresh
+                    props.queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
+                  })
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={memoizedStaffState.loading ? "Loading..." : "Select assignee"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {memoizedStaffState.error ? (
+                  <SelectItem value="error-loading" disabled>Error loading users</SelectItem>
+                ) : memoizedStaffState.loading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : memoizedStaffState.users?.length === 0 ? (
+                  <SelectItem value="no-users" disabled>No staff users found</SelectItem>
+                ) : (
+                  memoizedStaffState.users?.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.email} ({user.role.toLowerCase()})
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <LucideUser className="h-4 w-4" />
+              <span>
+                {memoizedStaffState.loading ? (
+                  "Loading..."
+                ) : ticket.assignee ? (
+                  memoizedStaffState.users?.find(u => u.id === ticket.assignee)?.email || 'Unknown User'
+                ) : (
+                  'Unassigned'
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Description */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-gray-700">Description</h2>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+        </div>
+
+        {/* Error Display */}
+        {props.hasErrors && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please fix the following errors:
+              <ul className="mt-2 list-disc list-inside">
+                {Object.entries(props.formState.validationErrors).map(([field, error]) => (
+                  <li key={field}>{error}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+      </form>
+    )
+  }, (prevProps, nextProps) => {
+    // Only re-render if these actually changed
+    return (
+      prevProps.isEditing === nextProps.isEditing &&
+      prevProps.ticket === nextProps.ticket &&
+      prevProps.handleSubmit === nextProps.handleSubmit
+    )
+  })
 
   if (isError) {
     return (
@@ -386,296 +645,6 @@ export function TicketDetails({ id }: TicketDetailsProps) {
     }
   }
 
-  // Memoize the comment history component
-  const memoizedCommentHistory = useMemo(() => {
-    return user ? <CommentHistory ticketId={id} userId={user.id} /> : null
-  }, [id, user])
-
-  // Wrap the form in a memo to prevent unnecessary re-renders
-  const TicketForm = React.memo(function TicketForm({ 
-    isEditing,
-    ticket,
-    staffUsers,
-    canEditTicket,
-    handleFieldChange,
-    hasErrors,
-    formState,
-    isSubmitting,
-    startEditing,
-    cancelEditing,
-    handleSubmit
-  }: {
-    isEditing: boolean;
-    ticket: Ticket | null;
-    staffUsers: User[] | undefined;
-    canEditTicket: (field?: keyof Ticket) => boolean;
-    handleFieldChange: (field: keyof UpdateTicketDTO) => void;
-    hasErrors: boolean;
-    formState: FormState;
-    isSubmitting: boolean;
-    startEditing: () => void;
-    cancelEditing: () => void;
-    handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
-  }) {
-    console.log('🔍 Rendering form with editing:', isEditing)
-    if (!ticket) return null
-
-    return (
-      <form 
-        key={isEditing ? 'editing' : 'viewing'} 
-        onSubmit={handleSubmit} 
-        className="space-y-6"
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            {isEditing ? (
-              <Input
-                name="title"
-                defaultValue={ticket.title}
-                className="text-2xl font-semibold"
-                disabled={!canEditTicket('title')}
-                onChange={() => handleFieldChange('title')}
-              />
-            ) : (
-              <h1 className="text-2xl font-semibold">{ticket.title}</h1>
-            )}
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Clock className="h-4 w-4" />
-              <span>Created {formatDistanceToNow(new Date(ticket.created_at))} ago</span>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            {!isEditing && isStaff && (
-              <Button
-                onClick={startEditing}
-                variant="outline"
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Edit Ticket
-              </Button>
-            )}
-            {isEditing && (
-              <Button
-                onClick={cancelEditing}
-                variant="outline"
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Done Editing
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Status and Priority */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <h2 className="text-sm font-medium text-gray-700">Status</h2>
-            {isEditing ? (
-              <Select
-                name="status"
-                defaultValue={ticket.status || "open"}
-                disabled={!canEditTicket('status')}
-                onValueChange={(value) => {
-                  console.log('🔍 Status changed:', value)
-                  handleFieldChange('status')
-                  // Make immediate update using RPC function
-                  const updates: Partial<UpdateTicketDTO> = { 
-                    id,
-                    status: value as typeof TICKET_STATUSES[number]
-                  }
-                  console.log('🔍 Sending status update:', updates)
-                  supabase
-                    .rpc('update_ticket_with_activity', {
-                      p_ticket_id: id,
-                      p_updates: updates,
-                      p_actor_id: user?.id
-                    })
-                    .then(({ data, error }) => {
-                      if (error) {
-                        console.error('Failed to update status:', error)
-                        return
-                      }
-                      console.log('Status updated:', data)
-                      mutate(data as Ticket)
-                      // Invalidate activities query to trigger refresh
-                      queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
-                    })
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TICKET_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status.replace('_', ' ').toLowerCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge className={cn("capitalize", getStatusColor(ticket.status))}>
-                {ticket.status.replace('_', ' ').toLowerCase()}
-              </Badge>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <h2 className="text-sm font-medium text-gray-700">Priority</h2>
-            {isEditing ? (
-              <Select
-                name="priority"
-                defaultValue={ticket.priority || "medium"}
-                disabled={!canEditTicket('priority')}
-                onValueChange={(value) => {
-                  console.log('🔍 Priority changed:', value)
-                  handleFieldChange('priority')
-                  // Make immediate update using RPC function
-                  const updates: Partial<UpdateTicketDTO> = { 
-                    id,
-                    priority: value as typeof TICKET_PRIORITIES[number]
-                  }
-                  console.log('🔍 Sending priority update:', updates)
-                  supabase
-                    .rpc('update_ticket_with_activity', {
-                      p_ticket_id: id,
-                      p_updates: updates,
-                      p_actor_id: user?.id
-                    })
-                    .then(({ data, error }) => {
-                      if (error) {
-                        console.error('Failed to update priority:', error)
-                        return
-                      }
-                      console.log('Priority updated:', data)
-                      mutate(data as Ticket)
-                      // Invalidate activities query to trigger refresh
-                      queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
-                    })
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TICKET_PRIORITIES.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {priority.toLowerCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge className={cn("capitalize", getPriorityColor(ticket.priority))}>
-                {ticket.priority.toLowerCase()}
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Assignee */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-gray-700">Assignee</h2>
-          {isEditing ? (
-            <Select
-              name="assignee"
-              defaultValue={ticket.assignee || "unassigned"}
-              disabled={!canEditTicket('assignee') || staffLoading}
-              onValueChange={(value) => {
-                console.log('🔍 Assignee changed:', value)
-                handleFieldChange('assignee')
-                // Make immediate update using RPC function
-                const updates: Partial<UpdateTicketDTO> = { 
-                  id,
-                  assignee: value === 'unassigned' ? null : value
-                }
-                console.log('🔍 Sending assignee update:', updates)
-                supabase
-                  .rpc('update_ticket_with_activity', {
-                    p_ticket_id: id,
-                    p_updates: updates,
-                    p_actor_id: user?.id
-                  })
-                  .then(({ data, error }) => {
-                    if (error) {
-                      console.error('Failed to update assignee:', error)
-                      return
-                    }
-                    console.log('Assignee updated:', data)
-                    mutate(data as Ticket)
-                    // Invalidate activities query to trigger refresh
-                    queryClient.invalidateQueries({ queryKey: ['ticket-activities', id] })
-                  })
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={staffLoading ? "Loading..." : "Select assignee"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {staffError ? (
-                  <SelectItem value="error-loading" disabled>Error loading users</SelectItem>
-                ) : staffLoading ? (
-                  <SelectItem value="loading" disabled>Loading...</SelectItem>
-                ) : staffUsers?.length === 0 ? (
-                  <SelectItem value="no-users" disabled>No staff users found</SelectItem>
-                ) : (
-                  staffUsers?.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.email} ({user.role.toLowerCase()})
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-gray-700">
-              <LucideUser className="h-4 w-4" />
-              <span>
-                {staffLoading ? (
-                  "Loading..."
-                ) : ticket.assignee ? (
-                  staffUsers?.find(u => u.id === ticket.assignee)?.email || 'Unknown User'
-                ) : (
-                  'Unassigned'
-                )}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Description */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-medium text-gray-700">Description</h2>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
-        </div>
-
-        {/* Error Display */}
-        {hasErrors && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Please fix the following errors:
-              <ul className="mt-2 list-disc list-inside">
-                {Object.entries(formState.validationErrors).map(([field, error]) => (
-                  <li key={field}>{error}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
-      </form>
-    )
-  }, (prevProps, nextProps) => {
-    // Only re-render if these actually changed
-    return (
-      prevProps.isEditing === nextProps.isEditing &&
-      prevProps.ticket === nextProps.ticket &&
-      prevProps.handleSubmit === nextProps.handleSubmit
-    )
-  })
-
   return (
     <div className="grid gap-6">
       <div className="col-span-1">
@@ -692,6 +661,8 @@ export function TicketDetails({ id }: TicketDetailsProps) {
             startEditing={startEditing}
             cancelEditing={cancelEditing}
             handleSubmit={handleSubmit}
+            queryClient={queryClient}
+            mutate={mutate}
           />
         </Card>
 
