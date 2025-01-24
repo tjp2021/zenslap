@@ -6,9 +6,9 @@ import { UserRole } from '@/lib/types'
 
 // Define route patterns
 const ADMIN_ROUTES = ['/admin']
-const AGENT_ROUTES = ['/tickets']
-const AUTHENTICATED_ROUTES = ['/dashboard', '/profile']
-const PUBLIC_ROUTES = ['/', '/about', '/contact', '/unauthorized'] // Add any other public routes here
+const AGENT_ROUTES = ['/(dashboard)/tickets', '/(dashboard)/tickets/*']  // Updated to match Next.js 13+ route groups
+const AUTHENTICATED_ROUTES = ['/(dashboard)/*']  // All dashboard routes require auth
+const PUBLIC_ROUTES = ['/', '/about', '/contact', '/unauthorized', '/auth/login', '/auth/signup', '/auth/forgot-password']
 const AUTH_ROUTES = ['/auth/login', '/auth/signup', '/auth/forgot-password']
 
 export async function middleware(req: NextRequest) {
@@ -21,19 +21,19 @@ export async function middleware(req: NextRequest) {
     method: req.method
   })
 
-  // Skip middleware for public routes
-  if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-    console.log('📢 Middleware - Public Route Access', { pathname })
-    return res
-  }
-
-  // Skip middleware for auth callback
+  // Skip middleware for auth callback first
   if (pathname.startsWith('/auth/callback')) {
     console.log('🎯 Middleware - Auth Callback Detected', { 
       pathname,
       hasCode: req.nextUrl.searchParams.has('code'),
-      code: req.nextUrl.searchParams.get('code')?.substring(0, 8) + '...' // Log first 8 chars for debugging
+      code: req.nextUrl.searchParams.get('code')?.substring(0, 8) + '...'
     })
+    return res
+  }
+
+  // Check if it's an exact match for public routes
+  if (PUBLIC_ROUTES.includes(pathname)) {
+    console.log('📢 Middleware - Public Route Access', { pathname })
     return res
   }
 
@@ -85,13 +85,12 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
-  ],
+    // Protected routes
+    '/(dashboard)/:path*',
+    '/admin/:path*',
+    '/tickets/:path*',
+    
+    // Exclude static files and api routes
+    '/((?!_next/static|_next/image|favicon.ico|public|api).*)'
+  ]
 }

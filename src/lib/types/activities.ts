@@ -58,9 +58,10 @@ export type ActivityContent = {
 
 // Actor type
 export interface Actor {
-  id: string
-  email: string
-  role: string
+  id?: string
+  email?: string
+  role?: string
+  displayName?: string
 }
 
 // Main ticket activity interface
@@ -68,6 +69,7 @@ export interface TicketActivity {
   id: string
   ticket_id: string
   actor_id: string
+  actor_role: string
   actor: Actor
   activity_type: ActivityType
   content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent | TagChangeContent

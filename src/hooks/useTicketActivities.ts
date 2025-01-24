@@ -25,9 +25,15 @@ export function useTicketActivities(ticketId: string) {
       // First get the activities - no JSON filtering in query
       const query = supabase
         .from('ticket_activities')
-        .select('*')
+        .select(`
+          *,
+          actor:users_secure(
+            id,
+            email,
+            role
+          )
+        `)
         .eq('ticket_id', ticketId)
-        .eq('activity_type', 'comment')
         .order('created_at', { ascending: false })
 
       // Debug the query parameters
@@ -40,15 +46,19 @@ export function useTicketActivities(ticketId: string) {
 
       const { data: activities, error: activitiesError } = await query
 
-      // Debug the raw results
+      // Debug the raw results with focus on roles
       console.log('🔍 Raw Query Results:', {
-        activities,
+        activities: activities?.map(a => ({
+          id: a.id,
+          actor_role: a.actor?.role,  // Get role from actor object
+          actor_id: a.actor_id
+        })),
         error: activitiesError
       })
 
       if (activitiesError) throw activitiesError
 
-      // Filter internal notes if needed
+      // Filter internal notes if not staff
       const filteredActivities = isStaff 
         ? activities 
         : activities?.filter(activity => {
@@ -56,35 +66,13 @@ export function useTicketActivities(ticketId: string) {
             return !content.is_internal
           })
 
-      // Debug filtered results
-      console.log('🔍 Filtered Activities:', filteredActivities)
-
-      // Then get the user data for each unique actor_id
-      const actorIds = [...new Set(activities?.map(a => a.actor_id) || [])]
-      const { data: actors, error: actorsError } = await supabase
-        .from('users_secure')
-        .select('id, email, role')
-        .in('id', actorIds)
-
-      if (actorsError) throw actorsError
-
-      // Debug log
-      console.log('🔍 Actors from DB:', actors)
-
-      // Combine the data
-      const combinedActivities = filteredActivities?.map(activity => ({
+      // Map activities to include actor role
+      const formattedActivities = filteredActivities?.map(activity => ({
         ...activity,
-        actor: actors?.find(actor => actor.id === activity.actor_id) || {
-          id: activity.actor_id,
-          email: 'unknown',
-          role: 'unknown'
-        }
-      })) || []
+        actor: activity.actor // Keep the original actor object with role
+      }))
 
-      // Debug log
-      console.log('🔍 Combined Activities:', combinedActivities)
-
-      return combinedActivities
+      return formattedActivities || []
     },
     {
       revalidateOnFocus: false,

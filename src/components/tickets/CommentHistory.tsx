@@ -240,30 +240,47 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
               ? JSON.parse(comment.content) 
               : comment.content
             
-            const userEmail = comment.actor?.email || 'Unknown User'
             const isInternal = comment.is_internal
+            
+            // Debug log
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🔍 Comment actor:', {
+                role: comment.actor?.role,
+                actor_id: comment.actor_id,
+                actor: comment.actor
+              })
+            }
+
+            // If we have an actor with email, it's a user - show their email
+            // Otherwise show their role (Agent/Admin)
+            const displayName = comment.actor?.email || 
+                              (comment.actor_role === 'agent' ? 'Agent' : 
+                               comment.actor_role === 'admin' ? 'Admin' : 
+                               'Unknown')
             
             return (
               <div
                 key={comment.id}
                 className={cn(
                   "p-4 rounded-lg border",
-                  isInternal && "bg-muted border-muted-foreground/20"
+                  isInternal ? "bg-yellow-50" : "bg-white"
                 )}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{userEmail}</span>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <span className="font-medium">
+                      {displayName}
+                    </span>
                     {isInternal && (
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="ml-2 text-xs">
                         Internal
                       </Badge>
                     )}
+                    <span className="text-sm text-gray-500 ml-2">
+                      {formatDistanceToNow(new Date(comment.created_at))} ago
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                    </span>
                     {(isStaff || comment.actor_id === user?.id) && (
                       <Button
                         variant="ghost"

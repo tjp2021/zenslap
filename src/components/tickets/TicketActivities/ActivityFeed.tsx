@@ -34,8 +34,8 @@ export function ActivityFeed({ ticketId }: ActivityFeedProps) {
           .from('ticket_activities')
           .select(`
             *,
-            actor:users_secure!actor_id (
-              email
+            actor:users_secure(
+              role
             )
           `)
           .eq('ticket_id', ticketId)
@@ -92,7 +92,7 @@ export function ActivityFeed({ ticketId }: ActivityFeedProps) {
           console.log('🔍 Rendering activity:', {
             id: activity.id,
             type: activity.activity_type,
-            actor: activity.actor?.email
+            actor: activity.actor?.role
           })
         }
         
@@ -114,7 +114,9 @@ export function ActivityFeed({ ticketId }: ActivityFeedProps) {
             {/* Activity Content */}
             <div className="flex-1">
               <p className="text-sm text-gray-900">
-                <span className="font-medium">{activity.actor?.email || 'Unknown user'}</span>
+                <span className="font-medium capitalize">
+                  {activity.actor?.role?.toLowerCase() || 'System'}
+                </span>
                 {' '}
                 {activity.activity_type === 'status_change' && (
                   <>changed status from <span className="font-medium">{activity.content.from || 'none'}</span> to <span className="font-medium">{activity.content.to}</span></>
