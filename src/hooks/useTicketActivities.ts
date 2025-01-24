@@ -113,6 +113,13 @@ export function useTicketActivities(ticketId: string) {
   )
 
   const addActivity = async (content: string, isInternal: boolean, mentions: MentionData[] = []) => {
+    console.log('🔍 [useTicketActivities] Adding activity:', {
+      content,
+      isInternal,
+      mentions,
+      timestamp: new Date().toISOString()
+    });
+
     if (!user) {
       toast({
         title: 'Error',
@@ -124,19 +131,20 @@ export function useTicketActivities(ticketId: string) {
     // Get emails for all mentioned users for UI display
     const { data: mentionedUsers, error: mentionError } = await supabase
       .from('users_secure')
-      .select('id, email')
+      .select('id, email, role')
       .in('id', mentions.map(m => m.referenced_id))
+
+    console.log('🔍 [useTicketActivities] Mentioned users query:', {
+      users: mentionedUsers,
+      error: mentionError,
+      timestamp: new Date().toISOString()
+    });
 
     if (mentionError) {
       console.error('Error fetching mentioned users:', mentionError)
     }
 
-    // Create a map of id -> email for quick lookup in UI
-    const userEmailMap = new Map(mentionedUsers?.map(u => [u.id, u.email]) || [])
-
     try {
-      console.log('🔍 [1] Raw Input:', { content, isInternal, mentions })
-      
       const newActivity = {
         ticket_id: ticketId,
         actor_id: user.id,
@@ -148,13 +156,22 @@ export function useTicketActivities(ticketId: string) {
         mentioned_user_ids: mentions.map(m => m.referenced_id)
       }
       
-      console.log('🔍 [2] Activity Structure:', JSON.stringify(newActivity, null, 2))
+      console.log('🔍 [useTicketActivities] Creating activity:', {
+        activity: newActivity,
+        timestamp: new Date().toISOString()
+      });
       
       const { data: activity, error } = await supabase
         .from('ticket_activities')
         .insert(newActivity)
         .select()
         .single()
+
+      console.log('🔍 [useTicketActivities] Activity creation result:', {
+        activity,
+        error,
+        timestamp: new Date().toISOString()
+      });
 
       if (error) {
         console.error('Error adding activity:', error)
