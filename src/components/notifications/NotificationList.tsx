@@ -66,7 +66,7 @@ export function NotificationList({ onClose }: NotificationListProps) {
               <div>
                 <p className="text-sm">
                   <span className="font-medium">
-                    {notification.ticket.title}
+                    {notification.activity.ticket.title}
                   </span>
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
