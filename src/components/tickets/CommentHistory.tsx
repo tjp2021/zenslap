@@ -52,6 +52,30 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
   const { activities: comments, isLoading, addActivity: createComment, deleteActivity: deleteComment } = useTicketActivities(ticketId)
   const { users: staffUsers } = useStaffUsers()
 
+  // Add function to format comment content with mentions
+  const formatCommentContent = (content: CommentContent) => {
+    if (!content.mentions?.length) return content.text
+
+    // Create a map of user IDs to user data
+    const userMap = staffUsers?.reduce((acc, user) => ({
+      ...acc,
+      [user.id]: {
+        id: user.id,
+        email: user.email || '',  // Provide default empty string
+        role: user.role
+      }
+    }), {} as Record<string, { id: string; email: string; role: UserRole }>) || {}
+
+    return content.text.replace(
+      /@([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g,
+      (match, email) => {
+        const user = Object.values(userMap).find(u => u.email === email)
+        if (!user) return match
+        return `<span class="mention bg-blue-100 dark:bg-blue-900 rounded px-1">${match}</span>`
+      }
+    )
+  }
+
   // Filter comments based on user role
   const visibleComments = useMemo(() => {
     if (!comments) return []
@@ -242,63 +266,48 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
             
             const isInternal = comment.is_internal
             
-            // Debug log
-            if (process.env.NODE_ENV === 'development') {
-              console.log('🔍 Comment actor:', {
-                role: comment.actor?.role,
-                actor_id: comment.actor_id,
-                actor: comment.actor
-              })
-            }
-
-            // If we have an actor with email, it's a user - show their email
-            // Otherwise show their role (Agent/Admin)
-            const displayName = comment.actor?.email || 
-                              (comment.actor_role === 'agent' ? 'Agent' : 
-                               comment.actor_role === 'admin' ? 'Admin' : 
-                               'Unknown')
-            
             return (
               <div
                 key={comment.id}
                 className={cn(
-                  "p-4 rounded-lg border",
-                  isInternal ? "bg-yellow-50" : "bg-white"
+                  "p-4 rounded-lg",
+                  isInternal ? "bg-yellow-50 dark:bg-yellow-900/20" : "bg-gray-50 dark:bg-gray-900/20"
                 )}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <span className="font-medium">
-                      {displayName}
-                    </span>
-                    {isInternal && (
-                      <Badge variant="outline" className="ml-2 text-xs">
-                        Internal
-                      </Badge>
-                    )}
-                    <span className="text-sm text-gray-500 ml-2">
-                      {formatDistanceToNow(new Date(comment.created_at))} ago
-                    </span>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-medium">{comment.actor?.email}</span>
+                      <span className="text-sm text-gray-500">
+                        {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                      </span>
+                      {isInternal && (
+                        <Badge variant="secondary" className="ml-2">Internal Note</Badge>
+                      )}
+                    </div>
+                    <div 
+                      className="prose dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ 
+                        __html: formatCommentContent(content)
+                      }}
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
-                    {(isStaff || comment.actor_id === user?.id) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(comment.id)}
-                        className="h-6 px-2"
-                      >
-                        Delete
-                      </Button>
-                    )}
-                  </div>
+                  {user && can(TicketActions.DELETE_COMMENT, user, comment as any) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(comment.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
-                <p className="whitespace-pre-wrap">{content.text}</p>
               </div>
             )
           })
         ) : (
-          <p className="text-center text-muted-foreground">No comments yet</p>
+          <p className="text-center text-gray-500">No comments yet</p>
         )}
       </div>
     </Card>

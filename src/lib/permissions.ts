@@ -61,7 +61,14 @@ const permissionRules: Record<TicketAction, (user: User | null, ticket: Ticket) 
      conditions.isAgent(user) || 
      conditions.isTicketCreator(user, ticket)),
   
-  [TicketActions.DELETE_COMMENT]: (user) => conditions.isAdmin(user),
+  [TicketActions.DELETE_COMMENT]: (user, ticket) => {
+    // Allow admins to delete any comment
+    if (conditions.isAdmin(user)) return true
+    
+    // Allow users to delete their own comments
+    const comment = ticket as any // ticket here is actually a comment
+    return user?.id === comment.actor_id
+  },
   
   [TicketActions.ADD_ATTACHMENT]: (user, ticket) =>
     conditions.isAuthenticated(user) &&

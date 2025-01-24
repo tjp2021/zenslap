@@ -118,10 +118,11 @@ export function useMentions(options: UseMentionsOptions = {}) {
           event.preventDefault()
           const filtered = suggestions
           if (filtered[state.selectedIndex]) {
+            const user = filtered[state.selectedIndex]
             options.onMention?.({
               id: crypto.randomUUID(),
               type: 'user',
-              referenced_id: filtered[state.selectedIndex].id
+              referenced_id: user.id,
             })
             dispatch({ type: 'RESET' })
           }
@@ -157,7 +158,7 @@ export function useMentions(options: UseMentionsOptions = {}) {
     options.onMention?.({
       id: crypto.randomUUID(),
       type: 'user',
-      referenced_id: user.id
+      referenced_id: user.id,
     })
     dispatch({ type: 'RESET' })
   }, [options])

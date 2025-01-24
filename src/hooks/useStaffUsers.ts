@@ -21,7 +21,7 @@ export function useStaffUsers() {
       const { data, error } = await supabase
         .from('users_secure')
         .select('id, email, role')
-        .in('role', ['ADMIN', 'AGENT'])
+        .in('role', ['admin', 'agent'])
         .order('email')
 
       if (error) throw error

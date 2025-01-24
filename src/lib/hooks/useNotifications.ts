@@ -16,14 +16,17 @@ export function useNotifications() {
         .from('notifications')
         .select(`
           *,
-          activity:ticket_activities (
+          activity:ticket_activities!notifications_activity_id_fkey (
             id,
             ticket_id,
-            type,
+            activity_type,
             content,
-            created_at
-          ),
-          ticket:tickets!ticket_activities(id, title)
+            created_at,
+            ticket:tickets!ticket_activities_ticket_id_fkey (
+              id,
+              title
+            )
+          )
         `)
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false })

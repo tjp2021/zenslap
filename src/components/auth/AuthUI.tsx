@@ -50,17 +50,37 @@ export default function AuthUI() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase.auth])
+  }, [router, supabase.auth])
 
   return (
-    <Auth
-      supabaseClient={supabase}
-      view="sign_in"
-      appearance={{ theme: ThemeSupa }}
-      theme="dark"
-      showLinks={false}
-      providers={[]}
-      redirectTo={`${window.location.origin}/auth/callback`}
-    />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-md p-8 space-y-4 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-center text-gray-900 mb-8">
+          Welcome Back
+        </h2>
+        <Auth
+          supabaseClient={supabase}
+          view="sign_in"
+          appearance={{
+            theme: ThemeSupa,
+            variables: {
+              default: {
+                colors: {
+                  brand: '#2563eb',
+                  brandAccent: '#1d4ed8'
+                }
+              }
+            },
+            className: {
+              container: 'w-full',
+              button: 'w-full px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors',
+              input: 'w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+            }
+          }}
+          theme="default"
+          providers={['github']}
+        />
+      </div>
+    </div>
   )
 } 

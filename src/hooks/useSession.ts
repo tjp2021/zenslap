@@ -14,7 +14,8 @@ const loadingAtom = atom<boolean>(true)
 // Derived role atom
 export const roleAtom = atom((get) => {
   const session = get(sessionAtom)
-  return (session?.user?.user_metadata?.role as UserRole) || null
+  const role = session?.user?.user_metadata?.role
+  return role ? (role.toUpperCase() as UserRole) : null
 })
 
 // Initialize session once at app level

@@ -62,8 +62,9 @@ export function useTicketActivities(ticketId: string) {
       const filteredActivities = isStaff 
         ? activities 
         : activities?.filter(activity => {
+            if (activity.activity_type !== 'comment') return true
             const content = activity.content as CommentContent
-            return !content.is_internal
+            return !content?.is_internal
           })
 
       // Map activities to include actor role
@@ -117,10 +118,14 @@ export function useTicketActivities(ticketId: string) {
       actor_id: user.id,
       activity_type: 'comment' as ActivityType,
       content: {
-        text: parsedContent, // Use cleaned text without mentions
+        text: content, // Use original content with mentions
         is_internal: isInternal,
-        mentions,
-        raw_content: content, // Keep original for reference
+        mentions: mentions.map(mention => ({
+          ...mention,
+          id: crypto.randomUUID(), // Ensure each mention has a unique ID
+          type: 'user' as const
+        })),
+        raw_content: content,
         parsed_content: parsedContent
       } as CommentContent,
     }
