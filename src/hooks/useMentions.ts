@@ -175,7 +175,7 @@ export function useMentions(options: UseMentionsOptions = {}) {
     searchTerm: state.searchTerm,
     selectedIndex: state.selectedIndex,
     suggestions: suggestions(),
-    isLoading,
+    isLoading: isLoading,
     handlers: {
       onKeyDown: handleKeyDown,
       onInput: handleInput,

@@ -101,16 +101,39 @@ export function useTicketActivities(ticketId: string) {
       return
     }
 
+    // Get emails for all mentioned users
+    const { data: mentionedUsers, error: mentionError } = await supabase
+      .from('users_secure')
+      .select('id, email')
+      .in('id', mentions.map(m => m.referenced_id))
+
+    if (mentionError) {
+      console.error('Error fetching mentioned users:', mentionError)
+    }
+
+    // Create a map of id -> email for quick lookup
+    const userEmailMap = new Map(mentionedUsers?.map(u => [u.id, u.email]) || [])
+
+    // Remove mentions from the displayed text
+    let parsedContent = content
+    mentions.forEach(mention => {
+      // Remove the entire @mention from the text
+      parsedContent = parsedContent.replace(
+        new RegExp(`@${mention.referenced_id}\\s*`, 'g'),
+        ''
+      ).trim()
+    })
+
     const newActivity: CreateActivityDTO = {
       ticket_id: ticketId,
       actor_id: user.id,
       activity_type: 'comment' as ActivityType,
       content: {
-        text: content,
+        text: parsedContent, // Use cleaned text without mentions
         is_internal: isInternal,
         mentions,
-        raw_content: content,
-        parsed_content: content // TODO: Add proper parsing if needed
+        raw_content: content, // Keep original for reference
+        parsed_content: parsedContent
       } as CommentContent,
     }
 

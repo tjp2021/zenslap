@@ -71,8 +71,9 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
       const lastAtSymbol = textBeforeCursor.lastIndexOf('@')
       if (lastAtSymbol === -1) return
 
-      // Get the text we're replacing (from @ to cursor)
-      const replacementText = `@${suggestions[selectedIndex].email} `
+      // Use email for a cleaner display
+      const selectedUser = suggestions[selectedIndex]
+      const replacementText = `@${selectedUser.email} `
       
       // Combine it all
       const newContent = textBeforeCursor.slice(0, lastAtSymbol) + 
@@ -253,21 +254,36 @@ export function CommentHistory({ ticketId, userId }: CommentHistoryProps) {
                     {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                   </span>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{content.text}</p>
-                {/* Show mentions only if they exist and user is staff */}
-                {isStaff && content.mentions && content.mentions.length > 0 && (
-                  <div className="mt-2 flex gap-1 flex-wrap">
-                    {content.mentions.map((mention: MentionData) => {
-                      // Find the referenced user from staff users
-                      const mentionedUser = staffUsers.find(u => u.id === mention.referenced_id)
-                      return (
-                        <Badge key={mention.id} variant="outline" className="text-xs">
-                          @{mentionedUser?.email || mention.referenced_id}
-                        </Badge>
-                      )
-                    })}
-                  </div>
-                )}
+                
+                {/* Comment content and mentions */}
+                <div className="space-y-2">
+                  {/* Main text content - without @mentions */}
+                  {content.text && (
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {content.text.replace(/@[^\s]+\s*/g, '')}
+                    </p>
+                  )}
+
+                  {/* Show mentions only as badges */}
+                  {isStaff && content.mentions && content.mentions.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap">
+                      {content.mentions.map((mention: MentionData) => {
+                        const mentionedUser = staffUsers.find(u => u.id === mention.referenced_id)
+                        if (!mentionedUser) return null
+                        return (
+                          <Badge 
+                            key={mention.id} 
+                            variant="secondary" 
+                            className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          >
+                            @{mentionedUser.email}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {/* Show delete button only if user has permission */}
                 {comment.actor_id === user?.id && (
                   <div className="mt-2 flex justify-end">
