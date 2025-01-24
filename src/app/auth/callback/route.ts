@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   if (!code) {
     console.log('⚠️ Auth Callback - No code, redirecting to login')
-    return NextResponse.redirect(new URL('/auth/login', SITE_URL))
+    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin))
   }
 
   const cookieStore = cookies()
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       hasRefreshToken: !!verifySession.refresh_token
     })
 
-    // Create response with redirect
+    // Create response with redirect to /tickets on successful login
     const response = NextResponse.redirect(new URL('/tickets', SITE_URL))
     
     // Add cache control headers to prevent caching
@@ -95,6 +95,7 @@ export async function GET(request: Request) {
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString()
     })
-    return NextResponse.redirect(new URL('/auth/login', SITE_URL))
+    // Use original request URL for error redirect to break potential loops
+    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin))
   }
 } 
