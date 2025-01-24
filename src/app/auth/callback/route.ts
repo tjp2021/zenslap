@@ -2,6 +2,8 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
@@ -14,7 +16,7 @@ export async function GET(request: Request) {
 
   if (!code) {
     console.log('⚠️ Auth Callback - No code, redirecting to login')
-    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin))
+    return NextResponse.redirect(new URL('/auth/login', SITE_URL))
   }
 
   const cookieStore = cookies()
@@ -73,7 +75,7 @@ export async function GET(request: Request) {
     })
 
     // Create response with redirect
-    const response = NextResponse.redirect(new URL('/tickets', requestUrl.origin))
+    const response = NextResponse.redirect(new URL('/tickets', SITE_URL))
     
     // Add cache control headers to prevent caching
     response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
@@ -81,7 +83,7 @@ export async function GET(request: Request) {
     response.headers.set('Expires', '0')
     
     console.log('↪️ Auth Callback - Redirecting to /tickets', {
-      origin: requestUrl.origin,
+      siteUrl: SITE_URL,
       target: '/tickets',
       timestamp: new Date().toISOString()
     })
@@ -93,6 +95,6 @@ export async function GET(request: Request) {
       stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString()
     })
-    return NextResponse.redirect(new URL('/auth/login', requestUrl.origin))
+    return NextResponse.redirect(new URL('/auth/login', SITE_URL))
   }
 } 
