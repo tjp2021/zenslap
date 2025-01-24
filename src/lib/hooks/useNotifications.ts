@@ -8,7 +8,7 @@ export function useNotifications() {
   const supabase = createClientComponentClient()
   const { user } = useAuth()
 
-  // Fetch notifications
+  // Fetch only unread notifications
   const { data: notifications = [], error, mutate } = useSWR(
     user ? ['notifications', user.id] : null,
     async () => {
@@ -29,6 +29,7 @@ export function useNotifications() {
           )
         `)
         .eq('user_id', user!.id)
+        .eq('read', false)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -67,9 +68,15 @@ export function useNotifications() {
     }
   }, [user, mutate, supabase])
 
-  // Mark notification as read
+  // Mark individual notification as read
   const markAsRead = async (notificationId: string) => {
     if (!user) return
+
+    // Optimistically update cache
+    mutate(
+      notifications.filter(n => n.id !== notificationId),
+      false
+    )
 
     const { error } = await supabase
       .from('notifications')
@@ -77,19 +84,19 @@ export function useNotifications() {
       .eq('id', notificationId)
       .eq('user_id', user.id)
 
-    if (error) throw error
-
-    // Optimistically update cache
-    mutate(
-      (old: NotificationWithDetails[] | undefined) => 
-        old?.map(n => n.id === notificationId ? { ...n, read: true } : n) || [],
-      false // Don't revalidate immediately
-    )
+    if (error) {
+      // If error, revalidate to get real state
+      mutate()
+      throw error
+    }
   }
 
   // Mark all as read
   const markAllAsRead = async () => {
     if (!user) return
+
+    // Optimistically update cache
+    mutate([], false)
 
     const { error } = await supabase
       .from('notifications')
@@ -97,24 +104,19 @@ export function useNotifications() {
       .eq('user_id', user.id)
       .eq('read', false)
 
-    if (error) throw error
-
-    // Optimistically update cache
-    mutate(
-      (old: NotificationWithDetails[] | undefined) => 
-        old?.map(n => ({ ...n, read: true })) || [],
-      false // Don't revalidate immediately  
-    )
+    if (error) {
+      // If error, revalidate to get real state
+      mutate()
+      throw error
+    }
   }
 
-  const unreadCount = (notifications || []).filter(n => !n.read).length
-
   return {
-    notifications: notifications || [],
-    unreadCount,
+    notifications,
+    unreadCount: notifications.length > 0 ? 1 : 0,
     isLoading: !error && !notifications,
     error,
-    markAsRead,
-    markAllAsRead
+    markAllAsRead,
+    markAsRead
   }
 } 

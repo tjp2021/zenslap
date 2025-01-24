@@ -6,8 +6,11 @@ import { NotificationList } from './NotificationList'
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
-  const { unreadCount } = useNotifications()
+  const { notifications, unreadCount } = useNotifications()
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Show indicator if there are any unread notifications
+  const hasUnread = unreadCount > 0
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -29,10 +32,8 @@ export function NotificationBell() {
         className="relative"
       >
         <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
+        {hasUnread && (
+          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
         )}
       </Button>
 

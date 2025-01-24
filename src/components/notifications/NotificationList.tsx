@@ -1,7 +1,7 @@
 import { useNotifications } from '@/lib/hooks/useNotifications'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 
@@ -10,7 +10,7 @@ interface NotificationListProps {
 }
 
 export function NotificationList({ onClose }: NotificationListProps) {
-  const { notifications, isLoading, markAsRead, markAllAsRead } = useNotifications()
+  const { notifications, isLoading, markAllAsRead, markAsRead } = useNotifications()
 
   if (isLoading) {
     return (
@@ -52,13 +52,9 @@ export function NotificationList({ onClose }: NotificationListProps) {
           <Link
             key={notification.id}
             href={`/tickets/${notification.activity.ticket_id}`}
-            className={`block border-b p-4 transition-colors hover:bg-gray-50 ${
-              !notification.read ? 'bg-blue-50' : ''
-            }`}
+            className="block border-b p-4 transition-colors hover:bg-gray-50"
             onClick={() => {
-              if (!notification.read) {
-                markAsRead(notification.id)
-              }
+              markAsRead(notification.id)
               onClose()
             }}
           >
@@ -78,9 +74,6 @@ export function NotificationList({ onClose }: NotificationListProps) {
                   })}
                 </p>
               </div>
-              {notification.read && (
-                <Check className="h-4 w-4 flex-shrink-0 text-gray-400" />
-              )}
             </div>
           </Link>
         ))}
