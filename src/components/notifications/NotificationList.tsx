@@ -70,7 +70,7 @@ export function NotificationList({ onClose }: NotificationListProps) {
                   </span>
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
-                  {notification.activity.content}
+                  {notification.activity.content.text}
                 </p>
                 <p className="mt-1 text-xs text-gray-400">
                   {formatDistanceToNow(new Date(notification.created_at), {

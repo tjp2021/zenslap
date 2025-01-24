@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Bell } from 'lucide-react'
 import { useNotifications } from '@/lib/hooks/useNotifications'
 import { Button } from '@/components/ui/button'
@@ -7,9 +7,21 @@ import { NotificationList } from './NotificationList'
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const { unreadCount } = useNotifications()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <Button
         variant="ghost"
         size="icon"
