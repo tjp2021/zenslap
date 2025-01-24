@@ -7,6 +7,8 @@ import type { Database } from '@/types/supabase'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+
 export default function AuthUI() {
   const supabase = createClientComponentClient<Database>()
   const router = useRouter()
@@ -41,9 +43,11 @@ export default function AuthUI() {
       })
 
       if (event === 'SIGNED_IN' && session) {
-        console.log('↪️ AuthUI - Handling SIGNED_IN, redirecting to callback')
-        // Force redirect to callback
-        window.location.href = `${window.location.origin}/auth/callback`
+        console.log('↪️ AuthUI - Handling SIGNED_IN, redirecting to callback', {
+          siteUrl: SITE_URL
+        })
+        // Force redirect to callback using SITE_URL
+        window.location.href = `${SITE_URL}/auth/callback`
       }
     })
 
