@@ -18,12 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { TICKET_PRIORITIES, TICKET_STATUSES } from '@/lib/types'
+import { TICKET_PRIORITIES, TICKET_STATUSES, UserRole } from '@/lib/types'
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { User } from '@supabase/auth-helpers-nextjs'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { useTickets } from '@/lib/context/tickets'
 
 type FormData = z.infer<typeof createTicketSchema>
 
@@ -32,21 +33,34 @@ export function CreateTicketForm() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [user, setUser] = useState<User | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const supabase = createClientComponentClient()
+  const { loadTickets } = useTickets()
 
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      if (user) {
+        setUser(user)
+        // Get user role from users_secure table
+        const { data: userData } = await supabase
+          .from('users_secure')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        setUserRole(userData?.role || null)
+      }
     }
     getUser()
   }, [supabase])
+
+  const isStaff = userRole === UserRole.ADMIN || userRole === UserRole.AGENT
 
   const form = useForm<FormData>({
     resolver: zodResolver(createTicketSchema),
     defaultValues: {
       status: 'open',
-      priority: 'medium',
+      priority: isStaff ? 'medium' : 'high',
     },
   })
 
@@ -60,17 +74,25 @@ export function CreateTicketForm() {
       setError(null)
       setIsSubmitting(true)
 
+      // For regular users, override priority and status
+      const ticketData = {
+        ...data,
+        created_by: user.id,
+        status: isStaff ? data.status : 'open',
+        priority: isStaff ? data.priority : 'high',
+      }
+
       const { data: ticket, error: createError } = await supabase
         .from('tickets')
-        .insert([{
-          ...data,
-          created_by: user.id
-        }])
+        .insert([ticketData])
         .select()
         .single()
 
       if (createError) throw createError
       if (!ticket) throw new Error('Failed to create ticket')
+
+      // Reload tickets list
+      await loadTickets()
 
       toast.success('Ticket created successfully', {
         description: `Ticket #${ticket.id.slice(0, 8)}`,
@@ -134,47 +156,50 @@ export function CreateTicketForm() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="priority">Priority</Label>
-            <Select
-              defaultValue={form.getValues('priority')}
-              onValueChange={(value) => form.setValue('priority', value as FormData['priority'])}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Select priority" />
-              </SelectTrigger>
-              <SelectContent>
-                {TICKET_PRIORITIES.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Only show priority and status fields for staff */}
+        {isStaff && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="priority">Priority</Label>
+              <Select
+                defaultValue={form.getValues('priority')}
+                onValueChange={(value) => form.setValue('priority', value as FormData['priority'])}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TICKET_PRIORITIES.map((priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div>
-            <Label htmlFor="status">Status</Label>
-            <Select
-              defaultValue={form.getValues('status')}
-              onValueChange={(value) => form.setValue('status', value as FormData['status'])}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                {TICKET_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div>
+              <Label htmlFor="status">Status</Label>
+              <Select
+                defaultValue={form.getValues('status')}
+                onValueChange={(value) => form.setValue('status', value as FormData['status'])}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TICKET_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex justify-end">
           <Button type="submit" disabled={isSubmitting}>

@@ -33,6 +33,7 @@ import { can, TicketActions } from '@/lib/permissions'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { TicketActions as NewTicketActions } from './TicketActions'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface SortableColumnProps {
   field: 'created_at' | 'updated_at' | 'priority' | 'status' | 'title'
@@ -80,6 +81,16 @@ function SortableColumn({ field, children, className, onClick }: SortableColumnP
         </span>
       </button>
     </TableHead>
+  )
+}
+
+function CreateTicketButton() {
+  return (
+    <Link href="/tickets/new" passHref>
+      <Button>
+        Create Ticket
+      </Button>
+    </Link>
   )
 }
 
@@ -288,12 +299,15 @@ export default function TicketList() {
 
         {/* Filters */}
         <div className="space-y-4 mb-4">
-          {/* Search */}
-          <Input
-            placeholder="Search tickets..."
-            className="max-w-sm"
-            onChange={(e) => setSearchFilter(e.target.value)}
-          />
+          {/* Search and Create Ticket */}
+          <div className="flex justify-between items-center">
+            <Input
+              placeholder="Search tickets..."
+              className="max-w-sm"
+              onChange={(e) => setSearchFilter(e.target.value)}
+            />
+            <CreateTicketButton />
+          </div>
 
           {/* Filter badges */}
           <div className="flex gap-4">

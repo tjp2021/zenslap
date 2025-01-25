@@ -14,6 +14,17 @@ export default function AuthUI() {
   const router = useRouter()
 
   useEffect(() => {
+    // Configure auth on mount
+    supabase.auth.setSession({
+      access_token: '',
+      refresh_token: ''
+    })
+    
+    supabase.auth.initialize({
+      flowType: 'pkce',
+      redirectTo: `${SITE_URL}/auth/callback`
+    })
+
     // Check initial session state
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
