@@ -20,17 +20,15 @@ export default function TicketsPage() {
       <div className="flex">
         {/* Sidebar */}
         <aside className="w-80 border-r bg-white p-4 min-h-[calc(100vh-4rem)] flex flex-col">
+          <Button 
+            className="w-full flex items-center gap-2 bg-[#4a9d76] hover:bg-[#2d6847] mb-4"
+            onClick={() => router.push('/tickets/new')}
+          >
+            <Plus className="h-4 w-4" />
+            Create a Ticket
+          </Button>
           <h2 className="text-lg font-semibold mb-4">Updates to your tickets</h2>
           <TicketUpdates />
-          <div className="mt-auto">
-            <Button 
-              className="w-full flex items-center gap-2 bg-[#4a9d76] hover:bg-[#2d6847]"
-              onClick={() => router.push('/tickets/new')}
-            >
-              <Plus className="h-4 w-4" />
-              Create a Ticket
-            </Button>
-          </div>
         </aside>
 
         {/* Main Content */}
