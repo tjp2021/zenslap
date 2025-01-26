@@ -67,12 +67,23 @@ export interface Actor {
 export interface TicketActivity {
   id: string
   ticket_id: string
-  actor_id: string | null
-  activity_type: ActivityType
-  content: CommentContent | StatusChangeContent | FieldChangeContent | AssignmentContent
-  mentioned_user_ids: string[] | null
+  activity_type: 'comment' | 'status_change' | 'priority_change' | 'assignment'
+  content: {
+    message?: string
+    from?: string
+    to?: string
+  }
   created_at: string
-  actor?: Actor
+  ticket?: {
+    id: string
+    title: string
+    created_by: string
+  }
+  actor?: {
+    id: string
+    email: string
+    role: string
+  }
 }
 
 // DTO for creating a new activity

@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from '@/app/auth'
+import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { UserRole } from '../types'
@@ -11,7 +11,7 @@ export async function protectApiRoute(
   handler: (req: NextRequest) => Promise<NextResponse>,
   requiredRole?: RoleRequirement
 ) {
-  const supabase = createServerSupabaseClient()
+  const supabase = createServerClient()
   
   try {
     const { data: { session } } = await supabase.auth.getSession()
