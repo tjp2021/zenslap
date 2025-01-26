@@ -1,15 +1,19 @@
 'use client'
 
-import { createClient } from '@/lib/supabase/client'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import useSWR from 'swr'
 import { TicketActivity, CreateActivityDTO, Actor, ActivityType, CommentContent, MentionData } from '@/lib/types/activities'
 import { useToast } from '@/components/ui/use-toast'
 import { useAuth } from '@/hooks/useAuth'
 import { useRoleAccess } from '@/hooks/useRoleAccess'
 import { createActivitySchema } from '@/lib/validation'
+import { useCallback } from 'react'
+import { Database } from '@/types/supabase'
+import { createQuery } from '@/lib/schema/query-builder'
+import { SCHEMA } from '@/lib/schema/constants'
 
 export function useTicketActivities(ticketId: string) {
-  const supabase = createClient()
+  const supabase = createClientComponentClient<Database>()
   const { toast } = useToast()
   const { user } = useAuth()
   const { isAdmin, isAgent } = useRoleAccess()
@@ -245,11 +249,34 @@ export function useTicketActivities(ticketId: string) {
     }
   }
 
+  const fetchActivities = useCallback(async () => {
+    const query = createQuery(supabase, 'ticket_activities')
+      // Select all columns from ticket_activities
+      .select(Object.values(SCHEMA.tables.ticket_activities.columns))
+      // Add ticket relationship using exact constraint name
+      .withRelation(
+        SCHEMA.tables.ticket_activities.constraints.foreignKeys.ticket_id,
+        Object.values(SCHEMA.tables.tickets.columns)
+      )
+      // Filter by ticket_id
+      .filterBy('ticket_id', ticketId)
+
+    const { data, error } = await query.execute()
+    
+    if (error) {
+      console.error('Error fetching ticket activities:', error)
+      throw error
+    }
+
+    return data
+  }, [ticketId])
+
   return {
     activities,
     isLoading,
     error,
     addActivity,
     deleteActivity,
+    fetchActivities
   }
 } 
