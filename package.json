@@ -11,7 +11,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "validate-schema": "ts-node scripts/validate-schema.ts"
+    "validate-schema": "ts-node scripts/validate-schema.ts",
+    "test:ai": "ts-node scripts/test-ai-service.ts"
   },
   "dependencies": {
     "@aws-amplify/cli": "^12.14.1",
@@ -51,9 +52,11 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
+    "exponential-backoff": "^3.1.1",
     "jotai": "^2.11.1",
     "lucide-react": "^0.473.0",
     "next": "15.1.5",
+    "openai": "^4.80.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
