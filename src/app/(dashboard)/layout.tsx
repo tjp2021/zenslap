@@ -14,7 +14,9 @@ const MemoizedTicketsProvider = memo(function MemoizedTicketsProvider({
     <TicketsProvider>
       <div className="min-h-screen bg-gray-100">
         <TopNav />
-        {children}
+        <main className="p-4">
+          {children}
+        </main>
       </div>
     </TicketsProvider>
   )

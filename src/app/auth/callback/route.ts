@@ -56,6 +56,33 @@ export async function GET(request: Request) {
       hasRefreshToken: !!session.refresh_token
     })
 
+    // Fetch user role from database
+    const { data: userData, error: roleError } = await supabase
+      .from('users_secure')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+
+    if (roleError) {
+      console.error('❌ Auth Callback - Role fetch error:', roleError)
+      throw roleError
+    }
+
+    // Set role in user metadata
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { db_role: userData.role }
+    })
+
+    if (updateError) {
+      console.error('❌ Auth Callback - Role metadata update error:', updateError)
+      throw updateError
+    }
+
+    console.log('✅ Auth Callback - Role set:', {
+      role: userData.role,
+      userId: session.user.id
+    })
+
     // Verify session was properly set
     const { data: { session: verifySession }, error: verifyError } = await supabase.auth.getSession()
     

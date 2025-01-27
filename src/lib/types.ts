@@ -1,8 +1,8 @@
 // Core type definitions used throughout the application
 export enum UserRole {
-	ADMIN = 'ADMIN',
-	AGENT = 'AGENT',
-	USER = 'USER'
+	ADMIN = 'admin',
+	AGENT = 'agent',
+	USER = 'user'
 }
 
 // Ticket status and priority as const arrays for type safety
@@ -172,3 +172,20 @@ export interface CreateActivityDTO {
 		field_name?: string
 	}
 }
+
+// SLA Types
+export type SLAPriority = 'high' | 'medium' | 'low'
+
+export interface SLAPolicy {
+	id: string
+	priority: SLAPriority
+	response_time_hours: number
+	resolution_time_hours: number
+	is_active: boolean
+	created_at: string
+	updated_at: string
+	created_by: string
+}
+
+export type CreateSLAPolicy = Omit<SLAPolicy, 'id' | 'created_at' | 'updated_at'>
+export type UpdateSLAPolicy = Partial<CreateSLAPolicy>

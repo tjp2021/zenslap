@@ -12,11 +12,12 @@ const sessionAtom = atom<Session | null>(null)
 const loadingAtom = atom<boolean>(true)
 
 // Derived role atom
-export const roleAtom = atom((get) => {
-  const session = get(sessionAtom)
-  const role = session?.user?.user_metadata?.role
-  return role ? (role.toUpperCase() as UserRole) : null
-})
+export const roleAtom = atom(
+  (get) => {
+    const session = get(sessionAtom)
+    return session?.user?.user_metadata?.db_role as UserRole || null
+  }
+)
 
 // Initialize session once at app level
 let initialized = false
@@ -29,20 +30,65 @@ export function useSession() {
 
   useEffect(() => {
     if (initialized) return
-
     initialized = true
     
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+    async function initSession() {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session?.user) {
+        // Get role from users_secure table
+        const { data: userData } = await supabase
+          .from('users_secure')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (userData) {
+          // Store the database role in metadata for easy access
+          await supabase.auth.updateUser({
+            data: { db_role: userData.role }
+          })
+          
+          // Update session with new metadata
+          const { data: { session: updatedSession } } = await supabase.auth.getSession()
+          setSession(updatedSession)
+        } else {
+          setSession(session)
+        }
+      }
+      
       setIsLoading(false)
-    })
+    }
+
+    initSession()
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        // Get role from users_secure table
+        const { data: userData } = await supabase
+          .from('users_secure')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (userData) {
+          // Store the database role in metadata
+          await supabase.auth.updateUser({
+            data: { db_role: userData.role }
+          })
+          
+          // Get updated session with new metadata
+          const { data: { session: updatedSession } } = await supabase.auth.getSession()
+          setSession(updatedSession)
+        } else {
+          setSession(session)
+        }
+      } else {
+        setSession(session)
+      }
       router.refresh()
     })
 

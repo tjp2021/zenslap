@@ -45,6 +45,7 @@ import React from 'react'
 import { StaffUser } from '@/hooks/useStaffUsers'
 import { QueryClient } from '@tanstack/react-query'
 import { KeyedMutator } from 'swr'
+import { SLACalculator } from '@/lib/services/SLACalculator'
 
 interface TicketHistory {
   id: string
@@ -128,6 +129,43 @@ interface TicketFormProps {
   queryClient: QueryClient;
   mutate: KeyedMutator<Ticket>;
 }
+
+const SLADeadline = React.memo(function SLADeadline({ ticket }: { ticket: Ticket }) {
+  const slaCalculator = new SLACalculator()
+  const deadline = slaCalculator.getSLADeadline(ticket)
+  const isOverdue = new Date() > deadline
+  const timeLeft = formatDistanceToNow(deadline, { addSuffix: true })
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium text-gray-700">Response Time SLA</h2>
+      <div className={cn(
+        "flex items-center justify-between p-4 rounded-lg border",
+        isOverdue ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"
+      )}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Clock className={cn(
+              "h-5 w-5",
+              isOverdue ? "text-red-500" : "text-green-500"
+            )} />
+            <Badge variant={isOverdue ? "destructive" : "secondary"} className="text-sm">
+              {isOverdue ? "OVERDUE" : "ON TRACK"}
+            </Badge>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">
+              {isOverdue ? "Overdue by" : "Due"} {timeLeft}
+            </span>
+            <span className="text-xs text-gray-500">
+              {ticket.priority} priority response time
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+})
 
 export function TicketDetails({ id }: TicketDetailsProps) {
   const router = useRouter()
@@ -590,6 +628,11 @@ export function TicketDetails({ id }: TicketDetailsProps) {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Remove redundant badges and add SLA at bottom */}
+        <div className="mt-6 pt-6 border-t">
+          <SLADeadline ticket={ticket} />
+        </div>
       </form>
     )
   }, (prevProps, nextProps) => {

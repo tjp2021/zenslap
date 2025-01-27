@@ -22,11 +22,25 @@ export function useAuth() {
       }
 
       if (session?.user) {
+        // Get user role from users_secure table
+        const { data: userData, error: userError } = await supabase
+          .from('users_secure')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        if (userError) {
+          console.error('Error fetching user role:', userError)
+          setUser(null)
+          setLoading(false)
+          return
+        }
+
         // Convert Supabase user to our User type
         const appUser: User = {
           id: session.user.id,
           email: session.user.email || '',
-          role: (session.user.user_metadata.role || UserRole.USER).toLowerCase() as UserRole,
+          role: userData?.role || UserRole.USER,
           created_at: session.user.created_at,
         }
         setUser(appUser)
@@ -40,12 +54,26 @@ export function useAuth() {
     getUser()
 
     // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
+        // Get user role from users_secure table
+        const { data: userData, error: userError } = await supabase
+          .from('users_secure')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        if (userError) {
+          console.error('Error fetching user role:', userError)
+          setUser(null)
+          setLoading(false)
+          return
+        }
+
         const appUser: User = {
           id: session.user.id,
           email: session.user.email || '',
-          role: (session.user.user_metadata.role || UserRole.USER).toLowerCase() as UserRole,
+          role: userData?.role || UserRole.USER,
           created_at: session.user.created_at,
         }
         setUser(appUser)

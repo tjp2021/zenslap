@@ -8,8 +8,8 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
 // Define route patterns
 const ADMIN_ROUTES = ['/admin']
-const AGENT_ROUTES = ['/(dashboard)/tickets', '/(dashboard)/tickets/*']  // Updated to match Next.js 13+ route groups
-const AUTHENTICATED_ROUTES = ['/(dashboard)/*']  // All dashboard routes require auth
+const AGENT_ROUTES = ['/tickets', '/tickets/*']  // Remove dashboard group since we're not using it
+const AUTHENTICATED_ROUTES = ['/*']  // All routes require auth except public ones
 const PUBLIC_ROUTES = ['/', '/about', '/contact', '/unauthorized', '/auth/login', '/auth/signup', '/auth/forgot-password']
 const AUTH_ROUTES = ['/auth/login', '/auth/signup', '/auth/forgot-password']
 

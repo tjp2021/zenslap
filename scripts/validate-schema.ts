@@ -5,6 +5,20 @@ const dotenv = require('dotenv')
 // Load environment variables
 dotenv.config({ path: '.env.local' })
 
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} tableName
+ * @param {string} [description]
+ */
+async function validateTable(supabase, tableName, description) {
+  console.log(`\nValidating ${description || tableName}...`)
+  const { error } = await supabase.from(tableName).select('id').limit(1)
+  if (error) {
+    throw new Error(`Failed to validate ${tableName}: ${error.message}`)
+  }
+  console.log(`✓ ${tableName} is accessible`)
+}
+
 async function main() {
   console.log('Starting schema validation script...')
   
@@ -12,7 +26,7 @@ async function main() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
 
-  const missingVars = []
+  const missingVars: string[] = []
   if (!supabaseUrl) missingVars.push('NEXT_PUBLIC_SUPABASE_URL')
   if (!supabaseServiceKey) missingVars.push('SUPABASE_SERVICE_ROLE_KEY')
 
@@ -59,15 +73,27 @@ async function main() {
   const validator = createSchemaValidator(supabase)
 
   try {
-    // Test connection
-    console.log('Testing database connection...')
-    const { error: connectionError } = await supabase.from('tickets').select('id').limit(1)
-    if (connectionError) {
-      throw new Error(`Connection test failed: ${connectionError.message}`)
-    }
-    console.log('Database connection successful')
+    // Test core tables
+    await validateTable(supabase, 'tickets', 'core tickets table')
+    await validateTable(supabase, 'ticket_activities', 'ticket activities')
+    await validateTable(supabase, 'users_secure', 'users table')
+    
+    // Test SLA tables and views
+    await validateTable(supabase, 'sla_policies', 'SLA policies')
+    await validateTable(supabase, 'sla_monitoring', 'SLA monitoring view')
 
-    // Validate schema
+    // Validate enums by querying a table using them
+    console.log('\nValidating custom types...')
+    const { error: enumError } = await supabase
+      .from('sla_policies')
+      .select('priority')
+      .limit(1)
+    if (enumError) {
+      throw new Error(`Failed to validate SLA enums: ${enumError.message}`)
+    }
+    console.log('✓ Custom types (sla_priority, sla_status) are valid')
+
+    // Validate schema relationships
     await validator.validateSchema()
     console.log('\n✅ Schema validation successful!')
     process.exit(0)

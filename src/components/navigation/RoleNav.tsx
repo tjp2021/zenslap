@@ -76,10 +76,5 @@ export const defaultNavItems: NavItem[] = [
     href: '/reports',
     label: 'Reports',
     requiredRoles: [UserRole.ADMIN, UserRole.AGENT]
-  },
-  {
-    href: '/settings',
-    label: 'Settings',
-    requiredRoles: UserRole.ADMIN
   }
 ] 

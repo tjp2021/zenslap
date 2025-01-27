@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -7,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useTickets } from '@/lib/context/tickets'
 import { Input } from "@/components/ui/input"
 import { TICKET_STATUSES, TICKET_PRIORITIES, type User, type Ticket } from '@/lib/types'
-import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus, AlertCircle } from "lucide-react"
+import { ArrowUpDown, ArrowUp, ArrowDown, UserPlus, AlertCircle, Clock } from "lucide-react"
 import { useState, useMemo, useCallback } from "react"
 import {
   Select,
@@ -34,6 +35,9 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { TicketActions as NewTicketActions } from './TicketActions'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { SLACalculator } from '@/lib/services/SLACalculator'
+import { formatDistanceToNow } from 'date-fns'
+import { cn } from '@/lib/utils'
 
 interface SortableColumnProps {
   field: 'created_at' | 'updated_at' | 'priority' | 'status' | 'title'
@@ -94,6 +98,27 @@ function CreateTicketButton() {
   )
 }
 
+const SLAColumn = React.memo(function SLAColumn({ ticket }: { ticket: Ticket }) {
+  const slaCalculator = new SLACalculator()
+  const deadline = slaCalculator.getSLADeadline(ticket)
+  const isOverdue = new Date() > deadline
+  const timeLeft = formatDistanceToNow(deadline, { addSuffix: true })
+
+  return (
+    <div className="flex items-center gap-2">
+      <Badge variant={isOverdue ? "destructive" : "outline"} className="whitespace-nowrap">
+        <Clock className={cn(
+          "h-4 w-4 mr-1",
+          isOverdue ? "text-white" : "text-gray-500"
+        )} />
+        <span>
+          {isOverdue ? "Overdue" : "Due"} {timeLeft}
+        </span>
+      </Badge>
+    </div>
+  )
+})
+
 export default function TicketList() {
   const router = useRouter()
   const { user } = useAuth() as { user: User | null }
@@ -108,10 +133,7 @@ export default function TicketList() {
     setSort,
   } = useTickets()
   const { users } = useUsers()
-  const { 
-    bulkUpdateTickets,
-    updateTicket,
-  } = useTicketMutations()
+  const { updateTicket } = useTicketMutations()
   const [selectedTickets, setSelectedTickets] = useState<Set<string>>(new Set())
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [isAssigning, setIsAssigning] = useState(false)
@@ -159,14 +181,18 @@ export default function TicketList() {
     setIsBulkUpdating(true)
     setBulkError(null)
     try {
-      await bulkUpdateTickets(Array.from(selectedTickets), { status: newStatus })
+      await Promise.all(
+        Array.from(selectedTickets).map(id => 
+          updateTicket(id, { status: newStatus })
+        )
+      )
       setSelectedTickets(new Set())
     } catch (error) {
       setBulkError(error instanceof Error ? error.message : 'Failed to update tickets')
     } finally {
       setIsBulkUpdating(false)
     }
-  }, [bulkUpdateTickets, selectedTickets])
+  }, [updateTicket, selectedTickets])
 
   // Assign handler
   const handleAssign = useCallback(async (assigneeId: string | null) => {
@@ -265,7 +291,7 @@ export default function TicketList() {
                         </div>
                       </SelectTrigger>
                       <SelectContent>
-                        {users.map((user: User) => (
+                        {users?.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             {user.email}
                           </SelectItem>
@@ -361,7 +387,12 @@ export default function TicketList() {
               <SortableColumn field="title">Title</SortableColumn>
               <SortableColumn field="status">Status</SortableColumn>
               <SortableColumn field="priority">Priority</SortableColumn>
-              <TableHead>SLA</TableHead>
+              <TableHead className="font-semibold">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  SLA Deadline
+                </div>
+              </TableHead>
               <SortableColumn field="created_at">Created</SortableColumn>
               <SortableColumn field="updated_at">Updated</SortableColumn>
               <TableHead>Actions</TableHead>
@@ -400,7 +431,7 @@ export default function TicketList() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <SLAIndicator ticket={ticket} />
+                  <SLAColumn ticket={ticket} />
                 </TableCell>
                 <TableCell>{new Date(ticket.created_at).toLocaleString()}</TableCell>
                 <TableCell>{new Date(ticket.updated_at).toLocaleString()}</TableCell>

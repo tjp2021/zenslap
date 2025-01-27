@@ -53,8 +53,8 @@ VALUES (
 -- Add test tickets
 INSERT INTO public.tickets (id, title, description, status, priority, created_by, assignee)
 VALUES 
-  ('11111111-1111-1111-1111-111111111111', 'Test Ticket 1', 'Description 1', 'open', 'medium', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'),
-  ('22222222-2222-2222-2222-222222222222', 'Test Ticket 2', 'Description 2', 'in_progress', 'high', '00000000-0000-0000-0000-000000000002', NULL);
+  ('11111111-1111-1111-1111-111111111111', 'Test Ticket 1', 'Description 1', 'open', 'medium'::sla_priority, '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'),
+  ('22222222-2222-2222-2222-222222222222', 'Test Ticket 2', 'Description 2', 'in_progress', 'high'::sla_priority, '00000000-0000-0000-0000-000000000002', NULL);
 
 -- Add test ticket activities
 INSERT INTO public.ticket_activities (id, ticket_id, actor_id, activity_type, content, mentioned_user_ids)

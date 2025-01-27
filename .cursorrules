@@ -18,7 +18,8 @@
       "Avoid over-engineering solutions",
       "Do not auto-generate multiple files",
       "Request permission before modifying/overwriting code",
-      "Provide impact analysis for all proposed changes"
+      "Provide impact analysis for all proposed changes",
+      "Separation of client with client and server with server code is very important"
     ],
     "action": "enforce",
     "severity": "error"
