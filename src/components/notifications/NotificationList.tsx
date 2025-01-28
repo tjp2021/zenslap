@@ -1,9 +1,10 @@
 import { useNotifications } from '@/lib/hooks/useNotifications'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertTriangle, Info } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
+import { cn } from '@/lib/utils'
 
 interface NotificationListProps {
   onClose: () => void
@@ -40,13 +41,11 @@ export function NotificationList({ onClose }: NotificationListProps) {
           variant="ghost"
           size="sm"
           onClick={async () => {
-            console.log('🔔 Mark all as read clicked')
             try {
               await markAllAsRead()
-              console.log('✅ Successfully marked all as read')
               onClose()
             } catch (error) {
-              console.error('❌ Failed to mark all as read:', error)
+              console.error('Failed to mark all as read:', error)
             }
           }}
         >
@@ -58,7 +57,10 @@ export function NotificationList({ onClose }: NotificationListProps) {
           <Link
             key={notification.id}
             href={`/tickets/${notification.activity.ticket_id}`}
-            className="block border-b p-4 transition-colors hover:bg-gray-50"
+            className={cn(
+              "block border-b p-4 transition-colors hover:bg-gray-50",
+              notification.priority === 'high' && 'bg-red-50 hover:bg-red-100'
+            )}
             onClick={async (e) => {
               e.preventDefault() // Prevent navigation until we mark as read
               await markAsRead(notification.id)
@@ -67,21 +69,52 @@ export function NotificationList({ onClose }: NotificationListProps) {
             }}
           >
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-sm">
-                  <span className="font-medium">
-                    {notification.activity.ticket.title}
-                  </span>
-                </p>
+              <div className="flex-grow">
+                <div className="flex items-center gap-2">
+                  {notification.priority === 'high' && (
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                  )}
+                  <p className="text-sm">
+                    <span className="font-medium">
+                      {notification.activity.ticket.title}
+                    </span>
+                  </p>
+                </div>
                 <p className="mt-1 text-sm text-gray-500">
                   {notification.activity.content.text}
                 </p>
-                <p className="mt-1 text-xs text-gray-400">
+                {notification.ai_metadata && (
+                  <div className="mt-2 text-xs">
+                    <div className="flex items-center gap-1 text-gray-500">
+                      <Info className="h-3 w-3" />
+                      <span>{notification.ai_metadata.reasoning}</span>
+                    </div>
+                    {notification.ai_metadata.suggestedActions && notification.ai_metadata.suggestedActions.length > 0 && (
+                      <div className="mt-1">
+                        <span className="font-medium text-gray-700">Suggested actions: </span>
+                        <span className="text-gray-500">
+                          {notification.ai_metadata.suggestedActions.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-gray-400">
                   {formatDistanceToNow(new Date(notification.created_at), {
                     addSuffix: true,
                   })}
                 </p>
               </div>
+              {notification.priority && (
+                <div className={cn(
+                  "rounded px-2 py-1 text-xs font-medium",
+                  notification.priority === 'high' && 'bg-red-100 text-red-800',
+                  notification.priority === 'medium' && 'bg-yellow-100 text-yellow-800',
+                  notification.priority === 'low' && 'bg-green-100 text-green-800'
+                )}>
+                  {notification.priority}
+                </div>
+              )}
             </div>
           </Link>
         ))}

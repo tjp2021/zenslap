@@ -7,16 +7,14 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
 // For use in client components only
 export function createClient() {
-  return createClientComponentClient({
+  return createClientComponentClient<Database>({
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     options: {
-      auth: {
-        flowType: 'pkce',
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        persistSession: true,
-        redirectTo: `${SITE_URL}/auth/callback`
+      global: {
+        headers: {
+          'x-my-custom-header': 'autocrm'
+        }
       }
     }
   })

@@ -32,7 +32,7 @@ export class OpenAIService {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert support analyst with deep knowledge of technical systems and customer service. Your goal is to provide clear, actionable insights based on historical ticket patterns.'
+            content: 'You are an expert support analyst with deep knowledge of technical systems, customer service, and mental health crisis detection. Your goal is to provide clear, actionable insights based on historical ticket patterns. When analyzing for crisis signals, you must be thorough and err on the side of caution, providing structured JSON output as specified.'
           },
           {
             role: 'user',
@@ -43,11 +43,22 @@ export class OpenAIService {
         max_tokens: config?.maxTokens ?? 1000,
         top_p: 1,
         frequency_penalty: 0,
-        presence_penalty: 0
+        presence_penalty: 0,
+        response_format: prompt.includes('JSON format') ? { type: 'json_object' } : undefined
       })
 
       const response = completion.choices[0]?.message?.content || 'No analysis generated'
       
+      // Validate JSON structure if it's expected to be JSON
+      if (prompt.includes('JSON format')) {
+        try {
+          JSON.parse(response)
+        } catch (error) {
+          console.error('Invalid JSON response:', error)
+          throw new Error('Failed to generate valid JSON analysis')
+        }
+      }
+
       return {
         content: response,
         tokensUsed: completion.usage?.total_tokens || 0

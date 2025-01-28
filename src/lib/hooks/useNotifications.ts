@@ -3,10 +3,12 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import useSWR, { mutate } from 'swr'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { NotificationWithDetails } from '@/lib/types/notifications'
+import { NotificationAIService } from '@/lib/services/notification-ai.service'
 
 export function useNotifications() {
   const supabase = createClientComponentClient()
   const { user } = useAuth()
+  const notificationAI = NotificationAIService.getInstance()
 
   // Fetch only unread notifications
   const { data: notifications = [], error, mutate } = useSWR(
@@ -33,7 +35,29 @@ export function useNotifications() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      return data || []
+
+      // Process notifications with AI if they don't have analysis yet
+      const processedNotifications = await Promise.all(
+        (data || []).map(async (notification: NotificationWithDetails) => {
+          if (!notification.priority || !notification.ai_metadata) {
+            try {
+              const analysis = await notificationAI.analyzeNotification(notification)
+              return {
+                ...notification,
+                priority: analysis.priority,
+                confidence: analysis.confidence,
+                ai_metadata: analysis.metadata
+              }
+            } catch (error) {
+              console.error('Failed to analyze notification:', error)
+              return notification
+            }
+          }
+          return notification
+        })
+      )
+
+      return processedNotifications || []
     },
     {
       revalidateOnFocus: true,
@@ -47,7 +71,7 @@ export function useNotifications() {
     if (!user) return
 
     const channel = supabase
-      .channel(`notifications:${user.id}`) // Unique channel per user
+      .channel(`notifications:${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -56,21 +80,39 @@ export function useNotifications() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`
         },
-        (payload) => {
+        async (payload) => {
           console.log('🔄 Real-time notification update:', payload)
+          
+          // If this is a new notification, analyze it
+          if (payload.eventType === 'INSERT') {
+            try {
+              const notification = payload.new as NotificationWithDetails
+              const analysis = await notificationAI.analyzeNotification(notification)
+              
+              // Update the notification with AI analysis
+              await supabase
+                .from('notifications')
+                .update({
+                  priority: analysis.priority,
+                  confidence: analysis.confidence,
+                  ai_metadata: analysis.metadata
+                })
+                .eq('id', notification.id)
+            } catch (error) {
+              console.error('Failed to analyze new notification:', error)
+            }
+          }
+          
           // Force immediate refetch without caching
           mutate(undefined, { revalidate: true })
         }
       )
       .subscribe()
 
-    console.log('🔌 Subscribed to notification changes for user:', user.id)
-
     return () => {
-      console.log('❌ Unsubscribed from notification changes')
       channel.unsubscribe()
     }
-  }, [user, mutate, supabase])
+  }, [user, mutate, supabase, notificationAI])
 
   // Mark individual notification as read
   const markAsRead = async (notificationId: string) => {
@@ -99,8 +141,6 @@ export function useNotifications() {
   const markAllAsRead = async () => {
     if (!user || !notifications.length) return
 
-    console.log('🔄 Marking these notifications as read:', notifications.map(n => n.id))
-
     // Use direct UPDATE instead of RPC
     const { error } = await supabase
       .from('notifications')
@@ -117,9 +157,16 @@ export function useNotifications() {
     await mutate(undefined, { revalidate: true })
   }
 
+  // Get high priority notifications
+  const highPriorityNotifications = notifications.filter(
+    n => n.priority === 'high' && n.confidence > 0.7
+  )
+
   return {
     notifications,
-    unreadCount: notifications.length > 0 ? 1 : 0,
+    highPriorityNotifications,
+    unreadCount: notifications.length,
+    highPriorityCount: highPriorityNotifications.length,
     isLoading: !error && !notifications,
     error,
     markAllAsRead,

@@ -22,6 +22,27 @@ export const SCHEMA = {
         }
       }
     },
+    NOTIFICATIONS: {
+      AI_ANALYSIS: {
+        path: 'ai_analyses',
+        fields: {
+          id: 'id',
+          type: 'type',
+          result: 'result',
+          confidence: 'confidence',
+          model_info: 'model_info'
+        }
+      },
+      ACTIVITY: {
+        path: 'ticket_activities',
+        fields: {
+          id: 'id',
+          ticket_id: 'ticket_id',
+          activity_type: 'activity_type',
+          content: 'content'
+        }
+      }
+    },
     SLA_POLICIES: {
       CREATED_BY: {
         path: 'users_secure',
@@ -66,6 +87,29 @@ export const SCHEMA = {
     }
   },
   TABLES: {
+    NOTIFICATIONS: {
+      name: 'notifications',
+      fields: {
+        id: 'uuid',
+        user_id: 'uuid',
+        activity_id: 'uuid',
+        read: 'boolean',
+        created_at: 'timestamptz',
+        updated_at: 'timestamptz',
+        ai_analysis_id: 'uuid',
+        priority: 'text',
+        confidence: 'float',
+        ai_metadata: 'jsonb'
+      },
+      constraints: {
+        primaryKey: 'notifications_pkey',
+        foreignKeys: {
+          user_id: 'notifications_user_id_fkey',
+          activity_id: 'notifications_activity_id_fkey',
+          ai_analysis_id: 'notifications_ai_analysis_id_fkey'
+        }
+      }
+    },
     SLA_POLICIES: {
       name: 'sla_policies',
       fields: {
@@ -115,4 +159,8 @@ export const SCHEMA = {
       }
     }
   }
-} as const 
+} as const
+
+module.exports = {
+  SCHEMA
+} 

@@ -174,6 +174,18 @@ export type Database = {
           tags: string[] | null
           title: string
           updated_at: string | null
+          crisis_type: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health' | null
+          severity_level: 'critical' | 'high' | 'medium' | 'low' | null
+          response_protocol: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response' | null
+          requires_immediate: boolean | null
+          has_actionable_plan: boolean | null
+          is_passive_ideation: boolean | null
+          escalated_from: string | null // UUID
+          location_based: boolean | null
+          cultural_context: string | null
+          is_metaphorical: boolean | null
+          is_general_inquiry: boolean | null
+          last_crisis_assessment_at: string | null // timestamptz
         }
         Insert: {
           assignee?: string | null
@@ -187,6 +199,18 @@ export type Database = {
           tags?: string[] | null
           title: string
           updated_at?: string | null
+          crisis_type?: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health' | null
+          severity_level?: 'critical' | 'high' | 'medium' | 'low' | null
+          response_protocol?: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response' | null
+          requires_immediate?: boolean | null
+          has_actionable_plan?: boolean | null
+          is_passive_ideation?: boolean | null
+          escalated_from?: string | null // UUID
+          location_based?: boolean | null
+          cultural_context?: string | null
+          is_metaphorical?: boolean | null
+          is_general_inquiry?: boolean | null
+          last_crisis_assessment_at?: string | null // timestamptz
         }
         Update: {
           assignee?: string | null
@@ -200,8 +224,28 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string | null
+          crisis_type?: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health' | null
+          severity_level?: 'critical' | 'high' | 'medium' | 'low' | null
+          response_protocol?: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response' | null
+          requires_immediate?: boolean | null
+          has_actionable_plan?: boolean | null
+          is_passive_ideation?: boolean | null
+          escalated_from?: string | null // UUID
+          location_based?: boolean | null
+          cultural_context?: string | null
+          is_metaphorical?: boolean | null
+          is_general_inquiry?: boolean | null
+          last_crisis_assessment_at?: string | null // timestamptz
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tickets_escalated_from_fkey"
+            columns: ["escalated_from"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       users_secure: {
         Row: {
@@ -263,6 +307,88 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_analyses: {
+        Row: {
+          id: string
+          ticket_id: string
+          type: 'sentiment' | 'priority' | 'category' | 'response' | 'urgency' | 'crisis'
+          created_at: string
+          result: {
+            confidence: number
+            explanation?: string
+            
+            crisis_type?: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health'
+            severity_level?: 'critical' | 'high' | 'medium' | 'low'
+            response_protocol?: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response'
+            requires_immediate?: boolean
+            has_actionable_plan?: boolean
+            is_passive_ideation?: boolean
+            location_based?: boolean
+            cultural_context?: string
+            is_metaphorical?: boolean
+            is_general_inquiry?: boolean
+          }
+          confidence: number
+          model_info: {
+            name: string
+            version: string
+            [key: string]: any
+          }
+          feedback_score?: number
+          feedback_notes?: string
+          is_validated: boolean
+          validated_at?: string
+          validated_by?: string
+          version: number
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          type: 'sentiment' | 'priority' | 'category' | 'response' | 'urgency' | 'crisis'
+          created_at?: string
+          result: Database['public']['Tables']['ai_analyses']['Row']['result']
+          confidence: number
+          model_info: {
+            name: string
+            version: string
+            [key: string]: any
+          }
+          feedback_score?: number
+          feedback_notes?: string
+          is_validated?: boolean
+          validated_at?: string
+          validated_by?: string
+          version?: number
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          type?: 'sentiment' | 'priority' | 'category' | 'response' | 'urgency' | 'crisis'
+          created_at?: string
+          result?: Database['public']['Tables']['ai_analyses']['Row']['result']
+          confidence?: number
+          model_info?: {
+            name: string
+            version: string
+            [key: string]: any
+          }
+          feedback_score?: number
+          feedback_notes?: string
+          is_validated?: boolean
+          validated_at?: string
+          validated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_ai_analyses_ticket"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -278,7 +404,9 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      crisis_type: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health'
+      severity_level: 'critical' | 'high' | 'medium' | 'low'
+      response_protocol: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response'
     }
     CompositeTypes: {
       [_ in never]: never

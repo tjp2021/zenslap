@@ -1,9 +1,10 @@
 import { ChromaClient, Collection, Embedding, Embeddings, IEmbeddingFunction, IncludeEnum } from 'chromadb'
 import { backOff } from 'exponential-backoff'
+import { CrisisType } from '../../../types/ai'
 
 export interface InsightPattern {
-  id: string
-  type: 'similarity' | 'trend' | 'similar_tickets'
+  id?: string
+  type: 'similarity' | 'trend' | 'similar_tickets' | CrisisType
   confidence: number
   relatedTickets: string[]
   explanation: string
