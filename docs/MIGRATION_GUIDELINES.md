@@ -576,3 +576,68 @@ END $$;
 ```
 
 These examples demonstrate common pitfalls and their solutions based on real production issues we've encountered. They serve as practical references for handling similar situations in future migrations. 
+
+## Migration Hell Case Study
+
+### Key Lessons from Real-time Monitoring Tables Migration
+
+1. **Migration Order Matters**
+   - Dependencies must be handled in correct order
+   - Use CASCADE drops to prevent orphaned objects
+   - Follow sequence: types → tables → policies
+
+2. **Supabase CLI Behavior**
+   - Don't trust "up to date" messages
+   - Use `--include-all` flag for force pushes
+   - Always verify with `db diff`
+
+3. **SQL Best Practices**
+   - Keep DDL statements clean and simple
+   - Avoid procedural SQL in migrations
+   - Use CASCADE for dependency cleanup
+
+### Anti-Patterns to Avoid
+
+1. **Migration Anti-Patterns**
+   - Mixing DDL and procedural SQL
+   - Trusting local state blindly
+   - Complex error handling in migrations
+
+2. **Process Anti-Patterns**
+   - Multiple migrations targeting same objects
+   - Fixing migrations instead of replacing
+   - Ignoring migration history
+
+3. **SQL Anti-Patterns**
+   - IF EXISTS without CASCADE
+   - Complex procedural blocks
+   - Circular dependencies
+
+### Debugging Steps
+1. Check production state first
+2. Create clean migrations instead of fixing old ones
+3. Test migrations in isolation
+4. Use `db diff` to verify actual state
+5. Check migration history with `migration list`
+6. Repair migration history only as last resort
+
+### Correct Migration Structure
+```sql
+-- 1. Drop types with CASCADE
+DROP TYPE IF EXISTS my_type CASCADE;
+
+-- 2. Create types
+CREATE TYPE my_type AS ENUM (...);
+
+-- 3. Create tables
+CREATE TABLE my_table (...);
+
+-- 4. Create indexes
+CREATE INDEX idx_my_table_field ON my_table(...);
+
+-- 5. Set up RLS
+ALTER TABLE my_table ENABLE ROW LEVEL SECURITY;
+
+-- 6. Create policies
+CREATE POLICY "policy_name" ON my_table ...;
+``` 

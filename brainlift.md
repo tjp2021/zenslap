@@ -1952,5 +1952,4 @@ ALTER TABLE message_queue ENABLE ROW LEVEL SECURITY;
 3. **SQL Anti-Patterns**:
    - IF EXISTS without CASCADE
    - Complex procedural blocks
-   - Circular dependencies
-</rewritten_file>
+   - Circular dependencies</rewritten_file>

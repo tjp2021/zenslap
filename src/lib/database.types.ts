@@ -389,6 +389,219 @@ export type Database = {
           }
         ]
       }
+      message_queue: {
+        Row: {
+          id: string
+          type: string
+          initial_severity: string | null
+          status: 'pending' | 'processing' | 'processed' | 'error'
+          data: Json
+          source: string
+          context: Json | null
+          user_id: string | null
+          session_id: string | null
+          created_at: string | null
+          processed_at: string | null
+          processing_metadata: Json | null
+          error: string | null
+          retry_count: number
+        }
+        Insert: {
+          id?: string
+          type: string
+          initial_severity?: string | null
+          status?: 'pending' | 'processing' | 'processed' | 'error'
+          data: Json
+          source: string
+          context?: Json | null
+          user_id?: string | null
+          session_id?: string | null
+          created_at?: string | null
+          processed_at?: string | null
+          processing_metadata?: Json | null
+          error?: string | null
+          retry_count?: number
+        }
+        Update: {
+          id?: string
+          type?: string
+          initial_severity?: string | null
+          status?: 'pending' | 'processing' | 'processed' | 'error'
+          data?: Json
+          source?: string
+          context?: Json | null
+          user_id?: string | null
+          session_id?: string | null
+          created_at?: string | null
+          processed_at?: string | null
+          processing_metadata?: Json | null
+          error?: string | null
+          retry_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      monitoring_audit_log: {
+        Row: {
+          id: string
+          event_type: string
+          severity: string
+          event_data: Json
+          analysis_data: Json | null
+          metadata: Json | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          event_type: string
+          severity: string
+          event_data: Json
+          analysis_data?: Json | null
+          metadata?: Json | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          event_type?: string
+          severity?: string
+          event_data?: Json
+          analysis_data?: Json | null
+          metadata?: Json | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      critical_alerts: {
+        Row: {
+          id: string
+          ticket_id: string
+          severity: 'critical' | 'high' | 'medium' | 'low'
+          requires_immediate: boolean
+          crisis_type: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health' | null
+          response_protocol: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response' | null
+          confidence: number
+          metadata: Json | null
+          status: 'pending' | 'acknowledged' | 'resolved'
+          acknowledged_by: string | null
+          acknowledged_at: string | null
+          resolved_by: string | null
+          resolved_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          severity: 'critical' | 'high' | 'medium' | 'low'
+          requires_immediate: boolean
+          crisis_type?: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health' | null
+          response_protocol?: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response' | null
+          confidence: number
+          metadata?: Json | null
+          status?: 'pending' | 'acknowledged' | 'resolved'
+          acknowledged_by?: string | null
+          acknowledged_at?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          ticket_id?: string
+          severity?: 'critical' | 'high' | 'medium' | 'low'
+          requires_immediate?: boolean
+          crisis_type?: 'suicide_risk' | 'self_harm' | 'panic_attack' | 'medical_emergency' | 'severe_distress' | 'emotional_distress' | 'cultural_distress' | 'general_stress' | 'mental_health' | null
+          response_protocol?: 'immediate_intervention' | 'emergency_services' | 'rapid_response' | 'urgent_intervention' | 'standard_response' | null
+          confidence?: number
+          metadata?: Json | null
+          status?: 'pending' | 'acknowledged' | 'resolved'
+          acknowledged_by?: string | null
+          acknowledged_at?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "critical_alerts_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "critical_alerts_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "users_secure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "critical_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users_secure"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      critical_alert_notifications: {
+        Row: {
+          id: string
+          alert_id: string
+          user_id: string
+          status: 'unread' | 'read' | 'acknowledged'
+          read_at: string | null
+          acknowledged_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          alert_id: string
+          user_id: string
+          status?: 'unread' | 'read' | 'acknowledged'
+          read_at?: string | null
+          acknowledged_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          alert_id?: string
+          user_id?: string
+          status?: 'unread' | 'read' | 'acknowledged'
+          read_at?: string | null
+          acknowledged_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "critical_alert_notifications_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "critical_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "critical_alert_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users_secure"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

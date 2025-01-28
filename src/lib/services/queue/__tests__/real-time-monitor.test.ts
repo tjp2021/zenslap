@@ -3,6 +3,7 @@ import { MessageQueue } from '../message-queue'
 import { AIService } from '../../ai-service'
 import { TicketAnalysis, Severity } from '@/types/ai'
 import { jest } from '@jest/globals'
+import { NotificationService } from '../../notification-service'
 
 // Mock AIService
 jest.mock('../../ai-service')
@@ -11,6 +12,7 @@ describe('RealTimeMonitor', () => {
   let monitor: RealTimeMonitor
   let queue: MessageQueue
   let aiService: jest.Mocked<AIService>
+  let notificationService: jest.Mocked<NotificationService>
 
   const createMockAnalysis = (
     severity: Severity,
@@ -51,12 +53,17 @@ describe('RealTimeMonitor', () => {
       getMetrics: jest.fn()
     } as unknown as jest.Mocked<AIService>
 
+    notificationService = {
+      createCriticalAlert: jest.fn().mockResolvedValue(undefined)
+    } as any
+
     // Create monitor with test config
     monitor = new RealTimeMonitor(queue, aiService, {
       pollIntervalMs: 10,
       maxBatchSize: 5,
       maxProcessingTimeMs: 100,
-      errorThreshold: 3
+      errorThreshold: 3,
+      notificationService
     })
   })
 
@@ -189,6 +196,69 @@ describe('RealTimeMonitor', () => {
         'Message processing exceeded time limit:',
         expect.any(Object)
       )
+    })
+  })
+
+  describe('Critical Alert Handling', () => {
+    it('should create critical alert when severity is critical', async () => {
+      // Mock critical response
+      aiService.analyzeTicket.mockResolvedValueOnce({
+        confidence: 0.95,
+        metadata: {
+          severity: 'critical',
+          requiresImmediate: true,
+          crisisType: 'suicide_risk',
+          responseProtocol: 'immediate_intervention'
+        }
+      })
+
+      // Add critical message
+      await queue.enqueue({ 
+        content: 'Critical message',
+        metadata: { priority: 'high' }
+      })
+
+      // Start monitor
+      const monitorPromise = monitor.start()
+      await new Promise(resolve => setTimeout(resolve, 50))
+      monitor.stop()
+      await monitorPromise
+
+      // Verify notification was created
+      expect(notificationService.createCriticalAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          severity: 'critical',
+          requiresImmediate: true,
+          crisisType: 'suicide_risk',
+          responseProtocol: 'immediate_intervention'
+        })
+      )
+    })
+
+    it('should not create critical alert for non-critical messages', async () => {
+      // Mock non-critical response
+      aiService.analyzeTicket.mockResolvedValueOnce({
+        confidence: 0.8,
+        metadata: {
+          severity: 'low',
+          requiresImmediate: false
+        }
+      })
+
+      // Add non-critical message
+      await queue.enqueue({ 
+        content: 'Normal message',
+        metadata: { priority: 'low' }
+      })
+
+      // Start monitor
+      const monitorPromise = monitor.start()
+      await new Promise(resolve => setTimeout(resolve, 50))
+      monitor.stop()
+      await monitorPromise
+
+      // Verify no notification was created
+      expect(notificationService.createCriticalAlert).not.toHaveBeenCalled()
     })
   })
 }) 
