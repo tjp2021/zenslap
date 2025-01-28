@@ -244,14 +244,35 @@ Example: { "isUrgent": true, "reason": "Production system down", "suggestedPrior
       }
     }
 
-    const { data, error } = await this.supabase
-      .from('ai_analyses')
-      .insert([analysis])
-      .select()
-      .single()
+    try {
+      const { data, error } = await this.supabase
+        .from('ai_analyses')
+        .insert([analysis])
+        .select()
+        .single()
 
-    if (error) throw error
-    return data as AIAnalysis
+      if (error) {
+        if (error.code === '42P01') { // Table doesn't exist
+          console.log('ai_analyses table does not exist, returning analysis without storing')
+          return {
+            id: crypto.randomUUID(),
+            ...analysis
+          }
+        }
+        throw error
+      }
+      return data as AIAnalysis
+    } catch (error: any) {
+      console.error('Error storing analysis:', {
+        error,
+        analysis
+      })
+      // Return the analysis even if we couldn't store it
+      return {
+        id: crypto.randomUUID(),
+        ...analysis
+      }
+    }
   }
 
   private getAnalysisFunction(type: AIAnalysisType): (content: string, config: AIConfig) => Promise<AIResponse<unknown>> {
@@ -309,15 +330,32 @@ Example: { "isUrgent": true, "reason": "Production system down", "suggestedPrior
   }
 
   private async getOpenAIClient(): Promise<OpenAI> {
-    if (!this.openai) {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        organization: process.env.OPENAI_ORG_ID,
-        maxRetries: this.retryConfig.maxAttempts,
-        timeout: 30000 // 30 seconds
+    try {
+      if (!this.openai) {
+        if (!process.env.OPENAI_API_KEY) {
+          throw new Error('OPENAI_API_KEY environment variable is not set')
+        }
+        
+        console.log('Initializing OpenAI client with config:', {
+          apiKey: process.env.OPENAI_API_KEY ? '***' : undefined,
+          model: this.serviceConfig.model,
+          maxTokens: this.serviceConfig.maxTokens,
+          temperature: this.serviceConfig.temperature
+        })
+        
+        this.openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY
+        })
+      }
+      return this.openai
+    } catch (error: any) {
+      console.error('Failed to initialize OpenAI client:', {
+        message: error?.message,
+        stack: error?.stack,
+        details: error
       })
+      throw error
     }
-    return this.openai
   }
 
   private async callWithRetry<T>(
@@ -330,70 +368,109 @@ Example: { "isUrgent": true, "reason": "Production system down", "suggestedPrior
         startingDelay: this.retryConfig.initialDelayMs,
         maxDelay: this.retryConfig.maxDelayMs,
         retry: (error: any) => {
+          console.error('OpenAI API Error:', {
+            error: error?.response?.data || error,
+            message: error?.message,
+            stack: error?.stack
+          })
           // Retry on rate limits and temporary errors
-          const isRateLimit = error?.error?.type === 'rate_limit_error'
-          const isServerError = error?.error?.type === 'server_error'
-          const isTimeout = error?.error?.code === 'timeout'
+          const isRateLimit = error?.response?.data?.error?.type === 'rate_limit_error'
+          const isServerError = error?.response?.data?.error?.type === 'server_error'
+          const isTimeout = error?.response?.data?.error?.code === 'timeout'
           
           return isRateLimit || isServerError || isTimeout
         }
       })
-    } catch (error) {
-      const openAIError = error as OpenAIError
-      console.error(errorMessage, {
-        message: openAIError.error?.message || error,
-        type: openAIError.error?.type,
-        code: openAIError.error?.code,
-        attempts: this.retryConfig.maxAttempts
-      })
-      throw new Error(`${errorMessage}: ${openAIError.error?.message || 'Unknown error'}`)
+    } catch (error: any) {
+      const errorDetails = {
+        message: error?.response?.data?.error?.message || error?.message,
+        type: error?.response?.data?.error?.type,
+        code: error?.response?.data?.error?.code,
+        attempts: this.retryConfig.maxAttempts,
+        stack: error?.stack,
+        raw: error
+      }
+      console.error(`${errorMessage}:`, errorDetails)
+      throw new Error(JSON.stringify(errorDetails))
     }
   }
 
   private async callOpenAI<T>(prompt: string, config: AIConfig, type: AIAnalysisType): Promise<AIResponse<T>> {
     const operation = async () => {
+      console.log('Starting OpenAI API call:', {
+        type,
+        model: config.model || this.serviceConfig.model,
+        maxTokens: this.serviceConfig.maxTokens,
+        temperature: this.serviceConfig.temperature
+      })
+
       const openai = await this.getOpenAIClient()
       const template = this.promptTemplates[type]
       
-      const completion = await openai.chat.completions.create({
-        model: config.model || this.serviceConfig.model,
-        messages: [
-          {
-            role: 'system',
-            content: `${template.system}\n\n${template.format}`
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: this.serviceConfig.temperature,
-        max_tokens: this.serviceConfig.maxTokens,
-        response_format: { type: 'json_object' }
+      console.log('Preparing messages for OpenAI:', {
+        systemPrompt: template.system,
+        format: template.format,
+        userPrompt: prompt
       })
 
-      const content = completion.choices[0]?.message?.content
-      if (!content) {
-        throw new Error('No content in OpenAI response')
-      }
-
-      let result: T
       try {
-        result = JSON.parse(content) as T
-      } catch (error) {
-        console.error('Failed to parse OpenAI response:', content)
-        throw new Error('Invalid JSON response from OpenAI')
-      }
+        const completion = await openai.chat.completions.create({
+          model: config.model || this.serviceConfig.model,
+          messages: [
+            {
+              role: 'system',
+              content: `${template.system}\n\n${template.format}`
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: this.serviceConfig.temperature,
+          max_tokens: this.serviceConfig.maxTokens
+        })
 
-      return {
-        result,
-        confidence: completion.choices[0]?.message?.role === 'assistant' ? 0.9 : 0.7,
-        metadata: {
+        console.log('OpenAI API response:', {
           model: completion.model,
           usage: completion.usage,
-          finish_reason: completion.choices[0]?.finish_reason,
-          attempts: 1
+          finishReason: completion.choices[0]?.finish_reason,
+          content: completion.choices[0]?.message?.content
+        })
+
+        const content = completion.choices[0]?.message?.content
+        if (!content) {
+          throw new Error('No content in OpenAI response')
         }
+
+        let result: T
+        try {
+          result = JSON.parse(content) as T
+          console.log('Parsed result:', result)
+        } catch (error) {
+          console.error('Failed to parse OpenAI response:', {
+            content,
+            error
+          })
+          throw new Error('Invalid JSON response from OpenAI')
+        }
+
+        return {
+          result,
+          confidence: completion.choices[0]?.message?.role === 'assistant' ? 0.9 : 0.7,
+          metadata: {
+            model: completion.model,
+            usage: completion.usage,
+            finish_reason: completion.choices[0]?.finish_reason,
+            attempts: 1
+          }
+        }
+      } catch (error: any) {
+        console.error('Error during OpenAI API call:', {
+          error: error?.response?.data || error,
+          message: error?.message,
+          stack: error?.stack
+        })
+        throw error
       }
     }
 

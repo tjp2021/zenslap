@@ -42,12 +42,22 @@ Attempted Solutions:
 
     // Test sentiment analysis
     console.log('1. Testing Sentiment Analysis...')
-    const sentiment = await aiService.analyzeTicket(
-      'test-1',
-      'sentiment',
-      testTicket
-    )
-    console.log('Sentiment Result:', sentiment)
+    try {
+      const sentiment = await aiService.analyzeTicket(
+        'test-1',
+        'sentiment',
+        testTicket
+      )
+      console.log('Sentiment Result:', sentiment)
+    } catch (error: any) {
+      console.error('Sentiment Analysis Error:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+        details: error?.response?.data || error
+      })
+      throw new Error(`Test failed: ${error?.message || JSON.stringify(error)}`)
+    }
 
     // Test priority suggestion
     console.log('\n2. Testing Priority Analysis...')
