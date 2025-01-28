@@ -1,0 +1,1 @@
+SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'ai_analyses') as table_exists; 

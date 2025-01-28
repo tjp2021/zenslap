@@ -1,0 +1,23 @@
+{
+    "db_name": "postgres",
+    "db_user": "postgres",
+    "db_password": "",
+    "db_host": "localhost",
+    "db_port": 5432,
+    "verification": {
+        "connection_threshold": 0.8,
+        "space_threshold_gb": 5,
+        "timeout_seconds": 300
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "migrations.log",
+        "format": "%(asctime)s [%(levelname)s] %(message)s"
+    },
+    "safety": {
+        "require_rollback": true,
+        "verify_each_step": true,
+        "backup_check": true,
+        "allow_force": false
+    }
+} 

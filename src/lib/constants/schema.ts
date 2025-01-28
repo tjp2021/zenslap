@@ -43,6 +43,26 @@ export const SCHEMA = {
           is_active: 'is_active'
         }
       }
+    },
+    AI_ANALYSES: {
+      TICKET: {
+        path: 'tickets',
+        fields: {
+          id: 'id',
+          title: 'title',
+          description: 'description',
+          status: 'status',
+          priority: 'priority'
+        }
+      },
+      VALIDATOR: {
+        path: 'users_secure',
+        fields: {
+          id: 'id',
+          email: 'email',
+          role: 'role'
+        }
+      }
     }
   },
   TABLES: {
@@ -74,6 +94,24 @@ export const SCHEMA = {
         sla_response_status: 'sla_status',
         sla_resolution_status: 'sla_status',
         is_breaching_sla: 'boolean'
+      }
+    },
+    AI_ANALYSES: {
+      name: 'ai_analyses',
+      fields: {
+        id: 'uuid',
+        ticket_id: 'uuid',
+        type: 'analysis_type',
+        created_at: 'timestamptz',
+        result: 'jsonb',
+        confidence: 'float',
+        model_info: 'jsonb',
+        feedback_score: 'integer',
+        feedback_notes: 'text',
+        is_validated: 'boolean',
+        validated_at: 'timestamptz',
+        validated_by: 'uuid',
+        version: 'integer'
       }
     }
   }

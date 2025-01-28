@@ -235,4 +235,163 @@ The core issue stemmed from not having a single source of truth and trying to wo
    - Verify each layer independently
    - Document patterns and gotchas
 
-By following these learnings and implementing the recommended improvements, we can avoid similar issues in the future and build a more robust development process. 
+By following these learnings and implementing the recommended improvements, we can avoid similar issues in the future and build a more robust development process.
+
+# Migration Hell - Analysis & Learnings
+
+## Problem/Feature Overview
+
+### Initial Requirements
+- Create `ai_analyses` table in Supabase
+- Set up proper permissions, RLS, and functions
+- Ensure table exists in production
+
+### Key Challenges & Failures
+1. **Migration Verification Failures**:
+   - Migration appeared successful but table wasn't created
+   - Silent failures masked real issues
+   - Error messages were misleading
+
+2. **Procedural SQL Mistakes**:
+   ```sql
+   -- WRONG: Can't use IF/THEN outside PL/pgSQL
+   IF NOT EXISTS (SELECT 1 FROM pg_tables...) THEN
+   -- WRONG: Can't use EXCEPTION outside PL/pgSQL
+   EXCEPTION WHEN OTHERS THEN
+   ```
+
+3. **Order of Operations Issues**:
+   ```sql
+   -- WRONG: Trying to drop policies before table exists
+   DROP POLICY IF EXISTS "..." ON ai_analyses;
+   DROP TABLE IF EXISTS ai_analyses;
+   ```
+
+## Solution Attempts
+
+### Attempt #1: Full Migration with Error Handling
+- Approach: Complex DO block with error handling
+- Failed Because: Syntax errors in procedural SQL
+- Learning: Don't mix DDL and procedural SQL in migrations
+
+### Attempt #2: Migration with Verification
+- Approach: Added IF EXISTS checks
+- Failed Because: IF/THEN outside PL/pgSQL
+- Learning: Migrations are DDL scripts, not procedures
+
+### Attempt #3: Basic Table Creation
+- Approach: Stripped down to basic CREATE TABLE
+- Succeeded Because: 
+  - Pure DDL statements
+  - Correct order of operations
+  - No procedural SQL
+
+## Key Lessons
+
+1. **Migration Best Practices**:
+   - Start with minimal DDL statements
+   - Test each component separately
+   - Use `CASCADE` with `DROP TYPE` to handle dependencies
+
+2. **Verification Strategy**:
+   - Don't trust migration success messages
+   - Verify table existence separately
+   - Check actual database state
+
+3. **SQL Statement Order**:
+   ```sql
+   -- CORRECT ORDER:
+   DROP TYPE IF EXISTS ... CASCADE;  -- Handles dependencies
+   CREATE TYPE ...;
+   CREATE TABLE ...;
+   CREATE INDEX ...;
+   GRANT permissions ...;
+   ```
+
+## Anti-Patterns Identified
+
+1. **Overcomplicating Migrations**:
+   ```sql
+   -- ANTI-PATTERN: Complex error handling
+   DO $$ 
+   BEGIN
+     -- Complex logic
+   EXCEPTION WHEN OTHERS THEN
+     -- Error handling
+   END $$;
+   ```
+
+2. **Trusting Migration Output**:
+   ```bash
+   # ANTI-PATTERN: Assuming success
+   Applying migration ... [success]
+   # CORRECT: Verify actual state
+   SELECT EXISTS (SELECT 1 FROM pg_tables...);
+   ```
+
+3. **Mixed SQL Paradigms**:
+   ```sql
+   -- ANTI-PATTERN: Mixing DDL and procedural
+   CREATE TABLE ...;
+   IF NOT EXISTS ... THEN
+   ```
+
+## Recommendations
+
+1. **Migration Template**:
+   ```sql
+   -- 1. Drop dependencies with CASCADE
+   DROP TYPE IF EXISTS ... CASCADE;
+   
+   -- 2. Create types
+   CREATE TYPE ... AS ENUM (...);
+   
+   -- 3. Create base table
+   CREATE TABLE ... (
+     -- columns
+   );
+   
+   -- 4. Add constraints
+   ALTER TABLE ... ADD CONSTRAINT ...;
+   
+   -- 5. Create indexes
+   CREATE INDEX ...;
+   
+   -- 6. Set permissions
+   GRANT ... TO ...;
+   
+   -- 7. Enable RLS and policies
+   ALTER TABLE ... ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY ...;
+   ```
+
+2. **Verification Process**:
+   - Use separate verification scripts
+   - Check actual database state
+   - Don't trust migration output
+
+3. **Development Flow**:
+   - Start with minimal table structure
+   - Add features incrementally
+   - Verify each step separately
+
+## Going Forward
+
+1. Create a migration checklist:
+   - [ ] Drop dependencies with CASCADE
+   - [ ] Create types before tables
+   - [ ] Add constraints after table creation
+   - [ ] Verify actual database state
+
+2. Use separate verification scripts:
+   ```sql
+   SELECT table_name, table_schema 
+   FROM information_schema.tables 
+   WHERE table_schema = 'public';
+   ```
+
+3. Break complex migrations into smaller steps:
+   - Base table structure
+   - Indexes and constraints
+   - Permissions and policies
+   - Functions and triggers 

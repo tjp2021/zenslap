@@ -1,7 +1,8 @@
-import { ChromaClient, Collection, Embedding, Embeddings } from 'chromadb'
+import { ChromaClient, Collection, Embedding, Embeddings, IEmbeddingFunction } from 'chromadb'
 
-interface InsightPattern {
-  type: 'similarity' | 'trend'
+export interface InsightPattern {
+  id: string
+  type: 'similarity' | 'trend' | 'similar_tickets'
   confidence: number
   relatedTickets: string[]
   explanation: string
@@ -16,8 +17,18 @@ export class ChromaService {
   private static instance: ChromaService | null = null
   private client: ChromaClient
   private collection: Collection | null = null
+  private embeddingFunction: IEmbeddingFunction
 
   private constructor() {
+    this.embeddingFunction = {
+      generate: async (texts: string[]): Promise<number[][]> => {
+        // Use the default embedding function from chromadb-default-embed
+        const { DefaultEmbeddingFunction } = require('chromadb-default-embed')
+        const embedder = new DefaultEmbeddingFunction()
+        return embedder.generate(texts)
+      }
+    }
+    
     this.client = new ChromaClient({
       path: 'https://api.trychroma.com:8000',
       auth: { 
@@ -43,7 +54,8 @@ export class ChromaService {
         name: 'insights',
         metadata: { 
           description: 'Ticket insights and patterns'
-        }
+        },
+        embeddingFunction: this.embeddingFunction
       })
     }
     return this.collection
@@ -128,10 +140,15 @@ export class ChromaService {
         await this.validateEmbedding(similar.embeddings[0][0])
       }
 
+      if (!similar.ids?.[0]?.length) {
+        return []
+      }
+
       return [{
-        type: 'similarity',
-        confidence: similar.distances?.[0]?.[0] || 0,
-        relatedTickets: similar.ids?.[0] || [],
+        id: ticketId,
+        type: 'similar_tickets',
+        confidence: 1 - (similar.distances?.[0]?.[0] || 0), // Convert distance to confidence
+        relatedTickets: similar.ids[0],
         explanation: 'Found tickets with similar content'
       }]
     } catch (error) {
