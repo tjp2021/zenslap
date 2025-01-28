@@ -28,11 +28,11 @@ export interface AnalysisRequest {
 export interface DetailedFeedback {
   patternId: string
   helpful: boolean
-  accuracy: number
-  relevance: number
-  actionability: string
-  comments?: string
-  userId?: string
+  accuracy: 'high' | 'medium' | 'low' | 'neutral'
+  relevance: 'high' | 'medium' | 'low' | 'neutral'
+  actionability: 'high' | 'medium' | 'low' | 'neutral'
+  comments?: string | null
+  userId?: string | null
   timestamp?: Date
 }
 

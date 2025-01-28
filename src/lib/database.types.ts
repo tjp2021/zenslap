@@ -227,6 +227,42 @@ export type Database = {
         }
         Relationships: []
       }
+      insight_feedback: {
+        Row: {
+          id: string
+          pattern_id: string
+          helpful: boolean
+          accuracy: number
+          relevance: number
+          actionability: 'high' | 'medium' | 'low' | 'neutral'
+          comments: string | null
+          user_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          pattern_id: string
+          helpful: boolean
+          accuracy: number
+          relevance: number
+          actionability: 'high' | 'medium' | 'low' | 'neutral'
+          comments?: string | null
+          user_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          pattern_id?: string
+          helpful?: boolean
+          accuracy?: number
+          relevance?: number
+          actionability?: 'high' | 'medium' | 'low' | 'neutral'
+          comments?: string | null
+          user_id?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

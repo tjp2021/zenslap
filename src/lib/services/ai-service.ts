@@ -1,7 +1,8 @@
 import { ChromaService, InsightPattern } from './integrations/chroma'
+import { OpenAIService } from './integrations/openai'
 import { AnalysisRequest, AIServiceConfig, TicketAnalysis, DetailedFeedback, AIMetrics } from '@/types/ai'
 import { createClient } from '@/lib/supabase/client'
-import { Database } from '@/types/database'
+import type { Database } from '@/lib/database.types'
 
 const DEFAULT_CONFIG: AIServiceConfig = {
   maxTokens: 1000,
@@ -13,6 +14,7 @@ const DEFAULT_CONFIG: AIServiceConfig = {
 export class AIService {
   private static instance: AIService | null = null
   private chromaService: ChromaService
+  private openaiService: OpenAIService
   private metrics: AIMetrics = {
     requestCount: 0,
     averageLatency: 0,
@@ -27,6 +29,7 @@ export class AIService {
 
   private constructor() {
     this.chromaService = ChromaService.getInstance()
+    this.openaiService = OpenAIService.getInstance()
   }
 
   public static getInstance(): AIService {
@@ -43,6 +46,7 @@ export class AIService {
 Similar Ticket:
 ${p.explanation}
 Confidence: ${p.confidence}
+Related Tickets: ${p.relatedTickets.join(', ')}
       `).join('\n')
 
     return `
@@ -55,12 +59,29 @@ ${context}
 New Ticket:
 ${content}
 
-Please provide:
-1. Problem classification
-2. Potential root causes
-3. Recommended resolution steps
-4. Additional context needed (if any)
-`
+Please provide a structured analysis with the following sections:
+
+1. Problem Classification
+- Categorize the issue type
+- Identify key components involved
+- Note any potential impact areas
+
+2. Root Cause Analysis
+- List potential underlying causes
+- Identify any patterns from similar tickets
+- Note environmental or system factors
+
+3. Recommended Resolution Steps
+- Provide clear, actionable steps
+- Include verification steps
+- Note any required permissions or resources
+
+4. Additional Context Needed
+- List any missing information
+- Suggest clarifying questions
+- Note any assumptions made
+
+Please format your response in markdown for better readability.`
   }
 
   public async analyzeTicket(request: AnalysisRequest): Promise<TicketAnalysis> {
@@ -77,8 +98,11 @@ Please provide:
       // Generate analysis using RAG
       const prompt = await this.generateRAGPrompt(patterns, request.content)
       
-      // TODO: Replace with actual LLM call
-      const analysis = 'Analysis will be implemented with actual LLM integration'
+      // Generate analysis using OpenAI
+      const { content: analysis, tokensUsed } = await this.openaiService.generateAnalysis(
+        prompt,
+        config
+      )
 
       // Update metrics
       this.updateMetrics('success', Date.now() - startTime, patterns)
@@ -89,8 +113,8 @@ Please provide:
         confidence: patterns[0]?.confidence || 0,
         metadata: {
           processingTime: Date.now() - startTime,
-          modelUsed: 'gpt-4', // TODO: Make configurable
-          tokensUsed: 0 // TODO: Add actual token counting
+          modelUsed: 'gpt-4',
+          tokensUsed
         }
       }
     } catch (error) {
@@ -101,31 +125,43 @@ Please provide:
   }
 
   public async trackFeedback(feedback: DetailedFeedback): Promise<void> {
+    const supabase = createClient()
+    
     try {
-      const supabase = createClient()
-      
-      // Store feedback in Supabase
-      await supabase
+      const { error } = await supabase
         .from('insight_feedback')
         .insert({
           pattern_id: feedback.patternId,
           helpful: feedback.helpful,
-          accuracy: feedback.accuracy,
-          relevance: feedback.relevance,
+          accuracy: this.convertRatingToNumber(feedback.accuracy),
+          relevance: this.convertRatingToNumber(feedback.relevance),
           actionability: feedback.actionability,
-          comments: feedback.comments,
-          user_id: feedback.userId,
-          created_at: feedback.timestamp || new Date()
+          comments: feedback.comments ?? null,
+          user_id: feedback.userId ?? null,
+          created_at: feedback.timestamp?.toISOString() || new Date().toISOString()
         })
 
-      // Update ChromaService accuracy tracking
-      await this.chromaService.trackAccuracy(feedback.patternId, feedback.helpful)
+      if (error) throw error
 
-      // Update local metrics
+      // Update metrics
       this.updateFeedbackMetrics(feedback)
     } catch (error) {
       console.error('Error tracking feedback:', error)
       throw error
+    }
+  }
+
+  private convertRatingToNumber(rating: 'high' | 'medium' | 'low' | 'neutral'): number {
+    switch (rating) {
+      case 'high':
+        return 1
+      case 'medium':
+        return 0.66
+      case 'low':
+        return 0.33
+      case 'neutral':
+      default:
+        return 0.5
     }
   }
 
@@ -157,7 +193,7 @@ Please provide:
     const stats = this.metrics.feedbackStats
     stats.total++
     stats.helpful += feedback.helpful ? 1 : 0
-    stats.accuracy = (stats.accuracy * (stats.total - 1) + feedback.accuracy) / stats.total
+    stats.accuracy = (stats.accuracy * (stats.total - 1) + this.convertRatingToNumber(feedback.accuracy)) / stats.total
   }
 
   public getMetrics(): AIMetrics {

@@ -1,6 +1,21 @@
 export interface Database {
   public: {
     Tables: {
+      insight_feedback: {
+        Row: {
+          id: string
+          pattern_id: string
+          helpful: boolean
+          accuracy: 'high' | 'medium' | 'low' | 'neutral'
+          relevance: 'high' | 'medium' | 'low' | 'neutral'
+          actionability: 'high' | 'medium' | 'low' | 'neutral'
+          comments: string | null
+          user_id: string | null
+          created_at: string
+        }
+        Insert: Omit<Tables['insight_feedback']['Row'], 'id'>
+        Update: Partial<Tables['insight_feedback']['Row']>
+      }
       tickets: {
         Row: {
           id: string
@@ -78,7 +93,7 @@ export interface Database {
 }
 
 // Helper type to access nested types
-type Tables = Database['public']['Tables']
+export type Tables = Database['public']['Tables']
 
 export interface DatabaseConfig {
   host: string
