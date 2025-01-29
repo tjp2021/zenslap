@@ -602,6 +602,55 @@ export type Database = {
           }
         ]
       }
+      audit_log: {
+        Row: {
+          id: string
+          action_type: 'create' | 'update' | 'delete' | 'acknowledge' | 'escalate' | 'validate' | 'reject' | 'assign' | 'comment' | 'status_change'
+          entity_type: 'ticket' | 'crisis_alert' | 'analysis' | 'intervention' | 'notification' | 'user' | 'system'
+          entity_id: string
+          actor_id: string | null
+          before_state: Json | null
+          after_state: Json | null
+          metadata: Json
+          ip_address: string | null
+          user_agent: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          action_type: 'create' | 'update' | 'delete' | 'acknowledge' | 'escalate' | 'validate' | 'reject' | 'assign' | 'comment' | 'status_change'
+          entity_type: 'ticket' | 'crisis_alert' | 'analysis' | 'intervention' | 'notification' | 'user' | 'system'
+          entity_id: string
+          actor_id?: string | null
+          before_state?: Json | null
+          after_state?: Json | null
+          metadata?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          action_type?: 'create' | 'update' | 'delete' | 'acknowledge' | 'escalate' | 'validate' | 'reject' | 'assign' | 'comment' | 'status_change'
+          entity_type?: 'ticket' | 'crisis_alert' | 'analysis' | 'intervention' | 'notification' | 'user' | 'system'
+          entity_id?: string
+          actor_id?: string | null
+          before_state?: Json | null
+          after_state?: Json | null
+          metadata?: Json
+          ip_address?: string | null
+          user_agent?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

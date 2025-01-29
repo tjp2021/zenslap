@@ -9,6 +9,7 @@ drop type if exists public.intervention_status cascade;
 drop type if exists public.intervention_type cascade;
 drop type if exists public.message_status cascade;
 drop type if exists public.metric_type cascade;
+drop type if exists public.audit_action_type cascade;
 
 -- Create ENUMs
 create type public.contact_type as enum (
@@ -57,6 +58,19 @@ create type public.metric_type as enum (
     'alert_delivery_success_rate'
 );
 
+create type public.audit_action_type as enum (
+    'create',
+    'update', 
+    'delete',
+    'acknowledge',
+    'escalate',
+    'validate',
+    'reject',
+    'assign',
+    'comment',
+    'status_change'
+);
+
 -- Create tables with proper schema references
 create table public.audit_log (
     id uuid not null default gen_random_uuid(),
@@ -65,10 +79,17 @@ create table public.audit_log (
     entity_id uuid not null,
     actor_id uuid references auth.users(id),
     event_data jsonb not null,
+    action_type public.audit_action_type,
+    before_state jsonb,
+    after_state jsonb,
+    metadata jsonb default '{}'::jsonb,
     created_at timestamptz not null default now(),
     ip_address text,
     user_agent text,
-    constraint audit_log_pkey primary key (id)
+    constraint audit_log_pkey primary key (id),
+    constraint valid_metadata check (jsonb_typeof(metadata) = 'object'),
+    constraint valid_before_state check (jsonb_typeof(before_state) = 'object' OR before_state is null),
+    constraint valid_after_state check (jsonb_typeof(after_state) = 'object' OR after_state is null)
 );
 
 create table public.emergency_contacts (
@@ -108,6 +129,9 @@ create table public.performance_metrics (
 -- Create indexes with explicit schema references
 create index idx_audit_log_entity on public.audit_log using btree (entity_type, entity_id);
 create index idx_audit_log_event_type on public.audit_log using btree (event_type, created_at desc);
+create index idx_audit_log_action on public.audit_log using btree (action_type, created_at desc);
+create index idx_audit_log_actor on public.audit_log using btree (actor_id);
+create index idx_audit_log_created_at on public.audit_log using btree (created_at desc);
 create index idx_interventions_status on public.interventions using btree (status, started_at desc);
 create index idx_interventions_ticket on public.interventions using btree (ticket_id, started_at desc);
 create index idx_performance_metrics_type on public.performance_metrics using btree (metric_type, timestamp desc);
@@ -132,6 +156,13 @@ create policy "Staff can view audit log"
             and us.role = any(array['admin', 'agent'])
         )
     );
+
+create policy "System can insert audit log"
+    on public.audit_log
+    as permissive
+    for insert
+    to service_role
+    with check (true);
 
 create policy "Staff can manage emergency contacts"
     on public.emergency_contacts
@@ -192,11 +223,32 @@ create trigger update_emergency_contacts_updated_at
     for each row
     execute function public.update_emergency_contacts_updated_at();
 
+-- Create audit metadata trigger
+create or replace function set_audit_metadata()
+returns trigger as $$
+begin
+    new.metadata = jsonb_set(
+        coalesce(new.metadata, '{}'::jsonb),
+        '{request_info}',
+        jsonb_build_object(
+            'ip_address', current_setting('request.headers', true)::jsonb->>'x-real-ip',
+            'user_agent', current_setting('request.headers', true)::jsonb->>'user-agent'
+        )
+    );
+    return new;
+end;
+$$ language plpgsql;
+
+create trigger set_audit_metadata_trigger
+    before insert on public.audit_log
+    for each row
+    execute function set_audit_metadata();
+
 -- Add tables to realtime publication
 do $$
 declare
     table_name text;
-    tables text[] := array['public.interventions', 'public.emergency_contacts'];
+    tables text[] := array['public.interventions', 'public.emergency_contacts', 'public.audit_log'];
 begin
     if exists (
         select 1 from pg_publication where pubname = 'supabase_realtime'
@@ -223,7 +275,7 @@ begin;
 do $$
 declare
     table_name text;
-    tables text[] := array['public.interventions', 'public.emergency_contacts'];
+    tables text[] := array['public.interventions', 'public.emergency_contacts', 'public.audit_log'];
 begin
     if exists (
         select 1 from pg_publication where pubname = 'supabase_realtime'
@@ -243,6 +295,8 @@ end $$;
 -- Drop trigger and function
 drop trigger if exists update_emergency_contacts_updated_at on public.emergency_contacts;
 drop function if exists public.update_emergency_contacts_updated_at();
+drop trigger if exists set_audit_metadata_trigger on public.audit_log;
+drop function if exists set_audit_metadata();
 
 -- Drop RLS policies
 drop policy if exists "Staff can view audit log" on public.audit_log;
@@ -263,5 +317,6 @@ drop type if exists public.intervention_type cascade;
 drop type if exists public.intervention_status cascade;
 drop type if exists public.event_type cascade;
 drop type if exists public.contact_type cascade;
+drop type if exists public.audit_action_type cascade;
 
 commit; 
