@@ -1,3 +1,5 @@
+'use server'
+
 import { ChromaClient, Collection, Embedding, Embeddings, IEmbeddingFunction, IncludeEnum } from 'chromadb'
 import { backOff } from 'exponential-backoff'
 import { CrisisType } from '../../../types/ai'

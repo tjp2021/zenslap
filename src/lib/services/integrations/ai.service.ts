@@ -1,3 +1,5 @@
+'use server'
+
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AIConfig, AIAnalysis, AIAnalysisType } from '@/lib/types/integrations'
 import type { Database } from '@/../types/supabase'

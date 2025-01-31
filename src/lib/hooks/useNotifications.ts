@@ -1,14 +1,14 @@
+'use client'
+
 import { useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import useSWR, { mutate } from 'swr'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { NotificationWithDetails } from '@/lib/types/notifications'
-import { NotificationAIService } from '@/lib/services/notification-ai.service'
 
 export function useNotifications() {
   const supabase = createClientComponentClient()
   const { user } = useAuth()
-  const notificationAI = NotificationAIService.getInstance()
 
   // Fetch only unread notifications
   const { data: notifications = [], error, mutate } = useSWR(
@@ -36,28 +36,7 @@ export function useNotifications() {
 
       if (error) throw error
 
-      // Process notifications with AI if they don't have analysis yet
-      const processedNotifications = await Promise.all(
-        (data || []).map(async (notification: NotificationWithDetails) => {
-          if (!notification.priority || !notification.ai_metadata) {
-            try {
-              const analysis = await notificationAI.analyzeNotification(notification)
-              return {
-                ...notification,
-                priority: analysis.priority,
-                confidence: analysis.confidence,
-                ai_metadata: analysis.metadata
-              }
-            } catch (error) {
-              console.error('Failed to analyze notification:', error)
-              return notification
-            }
-          }
-          return notification
-        })
-      )
-
-      return processedNotifications || []
+      return data || []
     },
     {
       revalidateOnFocus: true,
@@ -87,15 +66,22 @@ export function useNotifications() {
           if (payload.eventType === 'INSERT') {
             try {
               const notification = payload.new as NotificationWithDetails
-              const analysis = await notificationAI.analyzeNotification(notification)
+              const analysis = await fetch('/api/notifications/analyze', {
+                method: 'POST',
+                body: JSON.stringify({ notification }),
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              })
+              const data = await analysis.json()
               
               // Update the notification with AI analysis
               await supabase
                 .from('notifications')
                 .update({
-                  priority: analysis.priority,
-                  confidence: analysis.confidence,
-                  ai_metadata: analysis.metadata
+                  priority: data.priority,
+                  confidence: data.confidence,
+                  ai_metadata: data.metadata
                 })
                 .eq('id', notification.id)
             } catch (error) {
@@ -112,7 +98,7 @@ export function useNotifications() {
     return () => {
       channel.unsubscribe()
     }
-  }, [user, mutate, supabase, notificationAI])
+  }, [user, mutate, supabase])
 
   // Mark individual notification as read
   const markAsRead = async (notificationId: string) => {
