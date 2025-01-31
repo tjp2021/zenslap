@@ -1,19 +1,37 @@
 -- migrate:up
 begin;
 
--- 1. Backup existing data
-CREATE TABLE IF NOT EXISTS audit_log_backup AS 
-SELECT * FROM audit_log;
+-- Step 1: Verify dependencies
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'audit_log'
+    ) THEN
+        RAISE EXCEPTION 'Dependency not met: public.audit_log table does not exist';
+    END IF;
 
--- 2. Migrate existing data
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_type 
+        WHERE typname = 'audit_action_type'
+    ) THEN
+        RAISE EXCEPTION 'Dependency not met: public.audit_action_type enum does not exist';
+    END IF;
+END $$;
+
+-- Step 2: Backup existing data
+CREATE TABLE IF NOT EXISTS audit_log_backup AS 
+SELECT * FROM audit_log WHERE action_type IS NULL;
+
+-- Step 3: Migrate existing data with proper type casting
 UPDATE audit_log SET
     action_type = CASE 
-        WHEN event_type = 'crisis_detected' THEN 'create'
-        WHEN event_type = 'alert_triggered' THEN 'create'
-        WHEN event_type = 'notification_sent' THEN 'create'
-        WHEN event_type = 'emergency_contacted' THEN 'escalate'
-        WHEN event_type = 'intervention_started' THEN 'create'
-        WHEN event_type = 'intervention_completed' THEN 'status_change'
+        WHEN event_type = 'crisis_detected' THEN 'create'::public.audit_action_type
+        WHEN event_type = 'alert_triggered' THEN 'create'::public.audit_action_type
+        WHEN event_type = 'notification_sent' THEN 'create'::public.audit_action_type
+        WHEN event_type = 'emergency_contacted' THEN 'escalate'::public.audit_action_type
+        WHEN event_type = 'intervention_started' THEN 'create'::public.audit_action_type
+        WHEN event_type = 'intervention_completed' THEN 'status_change'::public.audit_action_type
     END,
     metadata = jsonb_build_object(
         'event_type', event_type,
@@ -22,7 +40,7 @@ UPDATE audit_log SET
     )
 WHERE action_type IS NULL;
 
--- 3. Verification: Check if everything was migrated correctly
+-- Step 4: Verification
 DO $$ 
 DECLARE
     unmigrated_count INTEGER;
@@ -52,12 +70,12 @@ commit;
 -- migrate:down
 begin;
 
--- Restore from backup if needed
+-- Step 1: Restore from backup if needed
 INSERT INTO audit_log 
 SELECT * FROM audit_log_backup
 WHERE id NOT IN (SELECT id FROM audit_log);
 
--- Drop backup table
+-- Step 2: Drop backup table
 DROP TABLE IF EXISTS audit_log_backup;
 
 commit; 

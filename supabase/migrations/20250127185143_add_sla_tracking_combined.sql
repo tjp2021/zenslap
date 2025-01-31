@@ -1,62 +1,87 @@
--- Create SLA priority type
-CREATE TYPE public.sla_priority AS ENUM ('low', 'medium', 'high');
+-- Migration: 20250127185143_add_sla_tracking_combined.sql
+-- Description: Add SLA tracking functionality with proper type safety
+-- Following migration guidelines for clean, idempotent, and properly ordered operations
 
--- Create SLA status type
-CREATE TYPE public.sla_status AS ENUM ('pending', 'breached', 'met');
+-- Step 1: Create types (idempotent)
+DO $$ BEGIN
+    CREATE TYPE public.sla_priority AS ENUM ('low', 'medium', 'high');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- Add new priority column
-ALTER TABLE public.tickets 
-    ADD COLUMN new_priority sla_priority;
+DO $$ BEGIN
+    CREATE TYPE public.sla_status AS ENUM ('pending', 'breached', 'met');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- Update the new column based on the old one
-UPDATE public.tickets 
-SET new_priority = 
-    CASE priority
-        WHEN 'low' THEN 'low'::sla_priority
-        WHEN 'medium' THEN 'medium'::sla_priority
-        WHEN 'high' THEN 'high'::sla_priority
-        ELSE 'low'::sla_priority
-    END;
-
--- Drop the old column
-ALTER TABLE public.tickets 
-    DROP COLUMN priority;
-
--- Rename the new column
-ALTER TABLE public.tickets 
-    RENAME COLUMN new_priority TO priority;
-
--- Set the new column as not null with default
-ALTER TABLE public.tickets 
-    ALTER COLUMN priority SET NOT NULL,
-    ALTER COLUMN priority SET DEFAULT 'low'::sla_priority;
-
--- Create SLA policies table
-CREATE TABLE public.sla_policies (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+-- Step 2: Create tables (idempotent)
+CREATE TABLE IF NOT EXISTS public.sla_policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     priority sla_priority NOT NULL,
-    response_time_hours integer NOT NULL CHECK (response_time_hours > 0),
-    resolution_time_hours integer NOT NULL CHECK (resolution_time_hours > 0),
+    response_time_hours integer NOT NULL,
+    resolution_time_hours integer NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT sla_policies_pkey PRIMARY KEY (id),
+    CONSTRAINT sla_policies_response_time_check CHECK (response_time_hours > 0),
+    CONSTRAINT sla_policies_resolution_time_check CHECK (resolution_time_hours > 0)
 );
 
--- Create unique index for active policies
-CREATE UNIQUE INDEX unique_active_priority ON public.sla_policies (priority) WHERE is_active = true;
+-- Step 3: Create indexes (idempotent)
+DO $$ BEGIN
+    CREATE UNIQUE INDEX unique_active_priority ON public.sla_policies (priority) WHERE is_active = true;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- Add comment to SLA policies table
-COMMENT ON TABLE public.sla_policies IS 'Stores SLA policy configurations for different ticket priorities';
+-- Step 4: Add columns (idempotent)
+DO $$ BEGIN
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS new_priority sla_priority;
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_response_deadline timestamp with time zone;
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_resolution_deadline timestamp with time zone;
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS first_response_at timestamp with time zone;
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS resolution_at timestamp with time zone;
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_response_status sla_status DEFAULT 'pending';
+    ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_resolution_status sla_status DEFAULT 'pending';
+EXCEPTION
+    WHEN duplicate_column THEN null;
+END $$;
 
--- Add SLA tracking columns to tickets table
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_response_deadline timestamp with time zone;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_resolution_deadline timestamp with time zone;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS first_response_at timestamp with time zone;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS resolution_at timestamp with time zone;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_response_status sla_status DEFAULT 'pending';
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sla_resolution_status sla_status DEFAULT 'pending';
+-- Step 5: Data migration (idempotent)
+DO $$ BEGIN
+    UPDATE public.tickets 
+    SET new_priority = 
+        CASE priority
+            WHEN 'low' THEN 'low'::sla_priority
+            WHEN 'medium' THEN 'medium'::sla_priority
+            WHEN 'high' THEN 'high'::sla_priority
+            ELSE 'low'::sla_priority
+        END
+    WHERE new_priority IS NULL;
+EXCEPTION
+    WHEN undefined_column THEN null;
+END $$;
 
--- Create function to update SLA status
+-- Step 6: Drop old column and rename new (idempotent)
+DO $$ BEGIN
+    ALTER TABLE public.tickets DROP COLUMN IF EXISTS priority;
+    ALTER TABLE public.tickets RENAME COLUMN new_priority TO priority;
+EXCEPTION
+    WHEN undefined_column THEN null;
+    WHEN duplicate_column THEN null;
+END $$;
+
+-- Step 7: Set column constraints (idempotent)
+DO $$ BEGIN
+    ALTER TABLE public.tickets ALTER COLUMN priority SET NOT NULL;
+    ALTER TABLE public.tickets ALTER COLUMN priority SET DEFAULT 'low'::sla_priority;
+EXCEPTION
+    WHEN undefined_column THEN null;
+END $$;
+
+-- Step 8: Create functions (always replace)
 CREATE OR REPLACE FUNCTION public.update_sla_status()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -90,41 +115,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create trigger for SLA status updates
-CREATE TRIGGER update_ticket_sla_status
-    BEFORE UPDATE ON public.tickets
-    FOR EACH ROW
-    EXECUTE FUNCTION public.update_sla_status();
+-- Step 9: Create triggers (idempotent)
+DO $$ BEGIN
+    CREATE TRIGGER update_ticket_sla_status
+        BEFORE UPDATE ON public.tickets
+        FOR EACH ROW
+        EXECUTE FUNCTION public.update_sla_status();
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- Create function to calculate SLA deadlines
-CREATE OR REPLACE FUNCTION public.calculate_sla_deadlines()
-RETURNS TRIGGER AS $$
-DECLARE
-    policy_record RECORD;
-BEGIN
-    -- Get the active SLA policy for the ticket's priority
-    SELECT * INTO policy_record
-    FROM public.sla_policies
-    WHERE priority = NEW.priority AND is_active = true;
-
-    IF FOUND THEN
-        -- Calculate response deadline
-        NEW.sla_response_deadline := NEW.created_at + (policy_record.response_time_hours || ' hours')::interval;
-        -- Calculate resolution deadline
-        NEW.sla_resolution_deadline := NEW.created_at + (policy_record.resolution_time_hours || ' hours')::interval;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Create trigger for SLA deadline calculations
-CREATE TRIGGER set_ticket_sla_deadlines
-    BEFORE INSERT ON public.tickets
-    FOR EACH ROW
-    EXECUTE FUNCTION public.calculate_sla_deadlines();
-
--- Create view for SLA monitoring
+-- Step 10: Create views (always replace)
 CREATE OR REPLACE VIEW public.sla_monitoring AS
 SELECT 
     t.id,
@@ -145,40 +146,56 @@ SELECT
     END as is_breaching_sla
 FROM public.tickets t;
 
--- Enable RLS
+-- Step 11: Enable RLS and create policies (idempotent)
 ALTER TABLE public.sla_policies ENABLE ROW LEVEL SECURITY;
 
--- Create policies for SLA policies table
-CREATE POLICY "admin_all" ON public.sla_policies
-    FOR ALL
-    TO authenticated
-    USING (EXISTS (
-        SELECT 1 FROM users_secure us
-        WHERE us.id = auth.uid() AND us.role = 'admin'
-    ))
-    WITH CHECK (EXISTS (
-        SELECT 1 FROM users_secure us
-        WHERE us.id = auth.uid() AND us.role = 'admin'
-    ));
+DO $$ BEGIN
+    CREATE POLICY "admin_all" ON public.sla_policies
+        FOR ALL
+        TO authenticated
+        USING (EXISTS (
+            SELECT 1 FROM users_secure us
+            WHERE us.id = auth.uid() AND us.role = 'admin'
+        ))
+        WITH CHECK (EXISTS (
+            SELECT 1 FROM users_secure us
+            WHERE us.id = auth.uid() AND us.role = 'admin'
+        ));
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
-CREATE POLICY "view_active" ON public.sla_policies
-    FOR SELECT
-    TO authenticated
-    USING (is_active = true);
+DO $$ BEGIN
+    CREATE POLICY "view_active" ON public.sla_policies
+        FOR SELECT
+        TO authenticated
+        USING (is_active = true);
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- Grant access to authenticated users
+-- Step 12: Grant privileges
 GRANT SELECT ON public.sla_policies TO authenticated;
 GRANT SELECT ON public.sla_monitoring TO authenticated;
 
--- Insert default SLA policies
+-- Step 13: Insert default data (idempotent)
 INSERT INTO public.sla_policies (priority, response_time_hours, resolution_time_hours)
-VALUES 
-    ('low', 24, 72),
-    ('medium', 8, 24),
-    ('high', 1, 4);
+SELECT priority, response_time_hours, resolution_time_hours
+FROM (VALUES 
+    ('low'::sla_priority, 24, 72),
+    ('medium'::sla_priority, 8, 24),
+    ('high'::sla_priority, 1, 4)
+) AS v(priority, response_time_hours, resolution_time_hours)
+WHERE NOT EXISTS (
+    SELECT 1 FROM public.sla_policies
+);
 
--- Create updated_at trigger for SLA policies
-CREATE TRIGGER update_sla_policies_updated_at
-    BEFORE UPDATE ON public.sla_policies
-    FOR EACH ROW
-    EXECUTE FUNCTION public.update_updated_at(); 
+-- Step 14: Create updated_at trigger (idempotent)
+DO $$ BEGIN
+    CREATE TRIGGER update_sla_policies_updated_at
+        BEFORE UPDATE ON public.sla_policies
+        FOR EACH ROW
+        EXECUTE FUNCTION public.update_updated_at();
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$; 

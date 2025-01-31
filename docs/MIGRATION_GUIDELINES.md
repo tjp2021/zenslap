@@ -125,6 +125,97 @@ ALTER TABLE table_a
     FOREIGN KEY (table_b_id) REFERENCES table_b(id);
 ```
 
+### 4. Column Existence Checks
+```sql
+-- Problem: Creating indexes or constraints on columns that may not exist
+-- ANTI-PATTERN ❌
+CREATE INDEX idx_my_table_column ON my_table(column_name);
+
+-- CORRECT APPROACH ✅
+DO $$ 
+BEGIN
+    -- Check if column exists before creating index
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'my_table' 
+        AND column_name = 'column_name'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_my_table_column ON my_table(column_name);
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- For multiple indexes, check each column separately
+DO $$ 
+BEGIN
+    -- Check and create first index
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'my_table' 
+        AND column_name = 'first_column'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_first_column ON my_table(first_column);
+    END IF;
+
+    -- Check and create second index
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'my_table' 
+        AND column_name = 'second_column'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_second_column ON my_table(second_column);
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- For constraints, follow the same pattern
+DO $$ 
+BEGIN
+    -- Check if columns exist before adding constraint
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'my_table' 
+        AND column_name IN ('column_a', 'column_b')
+        GROUP BY table_name 
+        HAVING COUNT(*) = 2  -- ensure both columns exist
+    ) THEN
+        ALTER TABLE my_table
+            ADD CONSTRAINT my_constraint 
+            CHECK (column_a > column_b);
+    END IF;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+```
+
+## Best Practices for Column Existence Checks
+
+1. **Always Check Before Creating Indexes**
+   - Verify column existence before creating indexes
+   - Use separate checks for each index to handle partial failures
+   - Include proper exception handling
+
+2. **Constraint Dependencies**
+   - For constraints involving multiple columns, verify all columns exist
+   - Use GROUP BY and HAVING to ensure all required columns are present
+   - Consider the order of operations (column creation before constraints)
+
+3. **Error Handling**
+   - Catch and handle duplicate object exceptions gracefully
+   - Use proper schema qualification (public.table_name)
+   - Consider adding logging for failed checks in production
+
+4. **Migration Ordering**
+   - Create columns before indexes and constraints
+   - Handle column type modifications before creating dependent objects
+   - Consider breaking complex migrations into smaller, ordered steps
+
 ## Common Edge Cases & Solutions
 
 ### 1. Type Modifications

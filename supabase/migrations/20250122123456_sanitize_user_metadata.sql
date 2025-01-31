@@ -48,5 +48,8 @@ SET raw_app_meta_data = raw_app_meta_data;
 
 -- Add constraint to ensure raw_app_meta_data is valid jsonb
 ALTER TABLE auth.users 
-  ADD CONSTRAINT valid_raw_app_meta_data 
+  DROP CONSTRAINT IF EXISTS valid_raw_app_meta_data;
+
+ALTER TABLE auth.users                                                                          
+  ADD CONSTRAINT valid_raw_app_meta_data                                                        
   CHECK (raw_app_meta_data IS NULL OR jsonb_typeof(raw_app_meta_data) = 'object'); 

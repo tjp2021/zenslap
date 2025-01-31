@@ -1,817 +1,461 @@
-create sequence "public"."debug_log_id_seq";
-
-drop trigger if exists "set_updated_at" on "public"."notifications";
-
-drop policy "staff_create_internal_notes" on "public"."internal_notes";
-
-drop policy "staff_view_internal_notes" on "public"."internal_notes";
-
-drop policy "System can create notifications" on "public"."notifications";
-
-drop policy "Users can update own notifications" on "public"."notifications";
-
-drop policy "Users can view own notifications" on "public"."notifications";
-
-alter table "public"."internal_notes" drop constraint "internal_notes_created_by_fkey";
-
-alter table "public"."notifications" drop constraint "notifications_user_id_fkey";
-
-alter table "public"."profiles" drop constraint "profiles_role_check";
-
-alter table "public"."ticket_activities" drop constraint "ta_ticket_id_fkey";
-
-alter table "public"."tickets" drop constraint "tickets_created_by_fkey";
-
-drop function if exists "public"."mark_notifications_as_read"(p_user_id uuid, notification_ids uuid[]);
-
-drop index if exists "public"."idx_notifications_activity";
-
-drop index if exists "public"."idx_notifications_read";
-
-drop index if exists "public"."idx_ticket_activities_ticket_id_created_at";
-
-create table "public"."debug_log" (
-    "id" integer not null default nextval('debug_log_id_seq'::regclass),
-    "message" text,
-    "created_at" timestamp with time zone default now()
-);
-
-
-create table "public"."quick_responses" (
-    "id" uuid not null default uuid_generate_v4(),
-    "category_id" uuid not null,
-    "title" text not null,
-    "content" text not null,
-    "variables" jsonb not null default '[]'::jsonb,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone not null default now(),
-    "created_by" uuid not null
-);
-
-
-alter table "public"."quick_responses" enable row level security;
-
-create table "public"."response_categories" (
-    "id" uuid not null default uuid_generate_v4(),
-    "name" text not null,
-    "description" text,
-    "created_at" timestamp with time zone not null default now(),
-    "created_by" uuid not null
-);
-
-
-alter table "public"."response_categories" enable row level security;
-
-create table "public"."tags" (
-    "id" uuid not null default uuid_generate_v4(),
-    "name" text not null,
-    "color" text,
-    "created_at" timestamp with time zone not null default now()
-);
-
-
-alter table "public"."tags" enable row level security;
-
-create table "public"."ticket_history" (
-    "id" uuid not null default uuid_generate_v4(),
-    "ticket_id" uuid not null,
-    "field" text not null,
-    "old_value" text,
-    "new_value" text,
-    "created_at" timestamp with time zone not null default now(),
-    "created_by" text
-);
-
-
-create table "public"."ticket_messages" (
-    "id" uuid not null default uuid_generate_v4(),
-    "ticket_id" uuid not null,
-    "content" text not null,
-    "type" text not null,
-    "created_by" uuid not null,
-    "created_at" timestamp with time zone not null default now()
-);
-
-
-alter table "public"."ticket_messages" enable row level security;
-
-create table "public"."ticket_tags" (
-    "ticket_id" uuid not null,
-    "tag_id" uuid not null,
-    "created_at" timestamp with time zone not null default now()
-);
-
-
-alter table "public"."ticket_tags" enable row level security;
-
-alter table "public"."internal_notes" alter column "created_at" set not null;
-
-alter table "public"."internal_notes" alter column "id" set default uuid_generate_v4();
-
-alter table "public"."internal_notes" alter column "updated_at" set not null;
-
-alter table "public"."profiles" drop column "created_at";
-
-alter table "public"."profiles" drop column "updated_at";
-
-alter table "public"."ticket_activities" alter column "actor_id" set not null;
-
-alter table "public"."ticket_activities" alter column "mentioned_user_ids" set default ARRAY[]::uuid[];
-
-alter table "public"."tickets" drop column "tags";
-
-alter table "public"."tickets" alter column "created_at" set not null;
-
-alter table "public"."tickets" alter column "created_by" set not null;
-
-alter table "public"."tickets" alter column "description" set not null;
-
-alter table "public"."tickets" alter column "id" set default uuid_generate_v4();
-
-alter table "public"."tickets" alter column "metadata" set not null;
-
-alter table "public"."tickets" alter column "priority" set default 'medium'::text;
-
-alter table "public"."tickets" alter column "updated_at" set not null;
-
-alter sequence "public"."debug_log_id_seq" owned by "public"."debug_log"."id";
-
-CREATE UNIQUE INDEX debug_log_pkey ON public.debug_log USING btree (id);
-
-CREATE INDEX idx_notif_activity ON public.notifications USING btree (activity_id);
-
-CREATE INDEX idx_notif_user ON public.notifications USING btree (user_id);
-
-CREATE INDEX idx_notifications_activity_id ON public.notifications USING btree (activity_id);
-
-CREATE INDEX idx_ta_actor ON public.ticket_activities USING btree (actor_id);
-
-CREATE INDEX idx_ta_ticket_created ON public.ticket_activities USING btree (ticket_id, created_at DESC);
-
-CREATE INDEX idx_ticket_activities_actor_id ON public.ticket_activities USING btree (actor_id);
-
-CREATE INDEX idx_ticket_activities_ticket_id ON public.ticket_activities USING btree (ticket_id);
-
-CREATE INDEX internal_notes_created_at_idx ON public.internal_notes USING btree (created_at);
-
-CREATE INDEX internal_notes_ticket_id_idx ON public.internal_notes USING btree (ticket_id);
-
-CREATE INDEX quick_responses_category_id_idx ON public.quick_responses USING btree (category_id);
-
-CREATE INDEX quick_responses_created_by_idx ON public.quick_responses USING btree (created_by);
-
-CREATE UNIQUE INDEX quick_responses_pkey ON public.quick_responses USING btree (id);
-
-CREATE UNIQUE INDEX response_categories_name_key ON public.response_categories USING btree (name);
-
-CREATE UNIQUE INDEX response_categories_pkey ON public.response_categories USING btree (id);
-
-CREATE UNIQUE INDEX tags_name_key ON public.tags USING btree (name);
-
-CREATE UNIQUE INDEX tags_pkey ON public.tags USING btree (id);
-
-CREATE INDEX ticket_history_created_at_idx ON public.ticket_history USING btree (created_at);
-
-CREATE UNIQUE INDEX ticket_history_pkey ON public.ticket_history USING btree (id);
-
-CREATE INDEX ticket_history_ticket_id_idx ON public.ticket_history USING btree (ticket_id);
-
-CREATE INDEX ticket_messages_created_at_idx ON public.ticket_messages USING btree (created_at);
-
-CREATE UNIQUE INDEX ticket_messages_pkey ON public.ticket_messages USING btree (id);
-
-CREATE INDEX ticket_messages_ticket_id_idx ON public.ticket_messages USING btree (ticket_id);
-
-CREATE UNIQUE INDEX ticket_tags_pkey ON public.ticket_tags USING btree (ticket_id, tag_id);
-
-CREATE INDEX ticket_tags_tag_id_idx ON public.ticket_tags USING btree (tag_id);
-
-CREATE INDEX ticket_tags_ticket_id_idx ON public.ticket_tags USING btree (ticket_id);
-
-CREATE INDEX tickets_created_at_idx ON public.tickets USING btree (created_at);
-
-CREATE INDEX tickets_created_by_idx ON public.tickets USING btree (created_by);
-
-CREATE INDEX tickets_priority_idx ON public.tickets USING btree (priority);
-
-CREATE INDEX tickets_status_idx ON public.tickets USING btree (status);
-
-alter table "public"."debug_log" add constraint "debug_log_pkey" PRIMARY KEY using index "debug_log_pkey";
-
-alter table "public"."quick_responses" add constraint "quick_responses_pkey" PRIMARY KEY using index "quick_responses_pkey";
-
-alter table "public"."response_categories" add constraint "response_categories_pkey" PRIMARY KEY using index "response_categories_pkey";
-
-alter table "public"."tags" add constraint "tags_pkey" PRIMARY KEY using index "tags_pkey";
-
-alter table "public"."ticket_history" add constraint "ticket_history_pkey" PRIMARY KEY using index "ticket_history_pkey";
-
-alter table "public"."ticket_messages" add constraint "ticket_messages_pkey" PRIMARY KEY using index "ticket_messages_pkey";
-
-alter table "public"."ticket_tags" add constraint "ticket_tags_pkey" PRIMARY KEY using index "ticket_tags_pkey";
-
-alter table "public"."internal_notes" add constraint "fk_ticket" FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE not valid;
-
-alter table "public"."internal_notes" validate constraint "fk_ticket";
-
-alter table "public"."notifications" add constraint "notif_activity_id_fkey" FOREIGN KEY (activity_id) REFERENCES ticket_activities(id) ON DELETE CASCADE not valid;
-
-alter table "public"."notifications" validate constraint "notif_activity_id_fkey";
-
-alter table "public"."notifications" add constraint "notif_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users_secure(id) ON DELETE CASCADE not valid;
-
-alter table "public"."notifications" validate constraint "notif_user_id_fkey";
-
-alter table "public"."quick_responses" add constraint "fk_created_by" FOREIGN KEY (created_by) REFERENCES auth.users(id) not valid;
-
-alter table "public"."quick_responses" validate constraint "fk_created_by";
-
-alter table "public"."quick_responses" add constraint "quick_responses_category_id_fkey" FOREIGN KEY (category_id) REFERENCES response_categories(id) ON DELETE CASCADE not valid;
-
-alter table "public"."quick_responses" validate constraint "quick_responses_category_id_fkey";
-
-alter table "public"."response_categories" add constraint "fk_created_by" FOREIGN KEY (created_by) REFERENCES auth.users(id) not valid;
-
-alter table "public"."response_categories" validate constraint "fk_created_by";
-
-alter table "public"."response_categories" add constraint "response_categories_name_key" UNIQUE using index "response_categories_name_key";
-
-alter table "public"."tags" add constraint "tags_name_key" UNIQUE using index "tags_name_key";
-
-alter table "public"."ticket_activities" add constraint "ticket_activities_activity_type_check" CHECK ((activity_type = ANY (ARRAY['comment'::text, 'status_change'::text, 'field_change'::text, 'assignment'::text]))) not valid;
-
-alter table "public"."ticket_activities" validate constraint "ticket_activities_activity_type_check";
-
-alter table "public"."ticket_activities" add constraint "ticket_activities_ticket_id_fkey" FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE not valid;
-
-alter table "public"."ticket_activities" validate constraint "ticket_activities_ticket_id_fkey";
-
-alter table "public"."ticket_history" add constraint "ticket_history_ticket_id_fkey" FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE not valid;
-
-alter table "public"."ticket_history" validate constraint "ticket_history_ticket_id_fkey";
-
-alter table "public"."ticket_messages" add constraint "fk_ticket" FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE not valid;
-
-alter table "public"."ticket_messages" validate constraint "fk_ticket";
-
-alter table "public"."ticket_messages" add constraint "ticket_messages_ticket_id_fkey" FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE not valid;
-
-alter table "public"."ticket_messages" validate constraint "ticket_messages_ticket_id_fkey";
-
-alter table "public"."ticket_messages" add constraint "ticket_messages_type_check" CHECK ((type = ANY (ARRAY['customer'::text, 'agent'::text]))) not valid;
-
-alter table "public"."ticket_messages" validate constraint "ticket_messages_type_check";
-
-alter table "public"."ticket_tags" add constraint "ticket_tags_tag_id_fkey" FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE not valid;
-
-alter table "public"."ticket_tags" validate constraint "ticket_tags_tag_id_fkey";
-
-alter table "public"."ticket_tags" add constraint "ticket_tags_ticket_id_fkey" FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE not valid;
-
-alter table "public"."ticket_tags" validate constraint "ticket_tags_ticket_id_fkey";
-
-alter table "public"."tickets" add constraint "tickets_priority_check" CHECK ((priority = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'urgent'::text]))) not valid;
-
-alter table "public"."tickets" validate constraint "tickets_priority_check";
-
-alter table "public"."tickets" add constraint "tickets_status_check" CHECK ((status = ANY (ARRAY['open'::text, 'in_progress'::text, 'resolved'::text, 'closed'::text]))) not valid;
-
-alter table "public"."tickets" validate constraint "tickets_status_check";
-
-set check_function_bodies = off;
-
-CREATE OR REPLACE FUNCTION public.handle_new_user()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-    insert into public.profiles (id, email, role)
-    values (new.id, new.email, new.raw_user_meta_data->>'role');
-    return new;
-end;
-$function$
-;
-
-CREATE OR REPLACE FUNCTION public.mark_notifications_as_read(user_id uuid, notification_ids uuid[])
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+-- Migration: 20250126010639_remote_schema.sql
+-- Description: Initial schema setup with proper ordering and idempotent operations
+-- Following migration guidelines for clean, idempotent, and properly ordered operations
+
+-- Step 1: Extensions (only if not exists)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "extensions";
+
+-- Step 2: Drop everything in reverse dependency order
+DO $$ 
 DECLARE
-    update_count integer;
+    r record;
 BEGIN
-    -- Log which notifications we're updating
-    RAISE LOG 'Marking notifications as read for user %, notifications: %', user_id, notification_ids;
-    
-    -- Update notifications
-    WITH updated AS (
-        UPDATE notifications 
-        SET read = true
-        WHERE user_id = $1
-        AND id = ANY($2)
-        RETURNING id
+    -- First disable RLS
+    FOR r IN (SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'public')
+    LOOP
+        EXECUTE format('ALTER TABLE IF EXISTS %I.%I DISABLE ROW LEVEL SECURITY', r.schemaname, r.tablename);
+    END LOOP;
+
+    -- Drop all policies
+    FOR r IN (SELECT schemaname, tablename, policyname FROM pg_policies WHERE schemaname = 'public')
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', r.policyname, r.schemaname, r.tablename);
+    END LOOP;
+
+    -- Drop all foreign key constraints
+    FOR r IN (
+        SELECT tc.table_schema, tc.constraint_name, tc.table_name
+        FROM information_schema.table_constraints tc
+        WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = 'public'
     )
-    SELECT COUNT(*) INTO update_count FROM updated;
-    
-    -- Log how many were updated
-    RAISE LOG 'Updated % notifications', update_count;
-END;
-$function$
-;
+    LOOP
+        EXECUTE format('ALTER TABLE IF EXISTS %I.%I DROP CONSTRAINT IF EXISTS %I CASCADE', 
+            r.table_schema, r.table_name, r.constraint_name);
+    END LOOP;
 
-CREATE OR REPLACE FUNCTION public.record_ticket_change()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-    if TG_OP = 'UPDATE' then
-        -- Record changes for each field
-        if OLD.title != NEW.title then
-            insert into ticket_history (ticket_id, field, old_value, new_value)
-            values (NEW.id, 'title', OLD.title, NEW.title);
-        end if;
+    -- Drop all triggers
+    FOR r IN (
+        SELECT tgname, relname 
+        FROM pg_trigger 
+        JOIN pg_class ON pg_trigger.tgrelid = pg_class.oid 
+        JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid 
+        WHERE nspname = 'public'
+    )
+    LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS %I ON public.%I CASCADE', r.tgname, r.relname);
+    END LOOP;
+END $$;
 
-        if OLD.description != NEW.description then
-            insert into ticket_history (ticket_id, field, old_value, new_value)
-            values (NEW.id, 'description', OLD.description, NEW.description);
-        end if;
+-- Step 3: Drop tables in reverse dependency order
+DROP TABLE IF EXISTS "public"."notifications" CASCADE;
+DROP TABLE IF EXISTS "public"."ticket_activities" CASCADE;
+DROP TABLE IF EXISTS "public"."internal_notes" CASCADE;
+DROP TABLE IF EXISTS "public"."ticket_messages" CASCADE;
+DROP TABLE IF EXISTS "public"."ticket_tags" CASCADE;
+DROP TABLE IF EXISTS "public"."ticket_history" CASCADE;
+DROP TABLE IF EXISTS "public"."tickets" CASCADE;
+DROP TABLE IF EXISTS "public"."users_secure" CASCADE;
+DROP TABLE IF EXISTS "public"."profiles" CASCADE;
+DROP TABLE IF EXISTS "public"."tags" CASCADE;
+DROP TABLE IF EXISTS "public"."quick_responses" CASCADE;
+DROP TABLE IF EXISTS "public"."response_categories" CASCADE;
+DROP TABLE IF EXISTS "public"."audit_log" CASCADE;
+DROP TABLE IF EXISTS "public"."debug_log" CASCADE;
+DROP TABLE IF EXISTS "public"."schema_info" CASCADE;
 
-        if OLD.status != NEW.status then
-            insert into ticket_history (ticket_id, field, old_value, new_value)
-            values (NEW.id, 'status', OLD.status, NEW.status);
-        end if;
+-- Step 4: Drop types
+DROP TYPE IF EXISTS "public"."analysis_type" CASCADE;
+DROP TYPE IF EXISTS "public"."contact_type" CASCADE;
+DROP TYPE IF EXISTS "public"."event_type" CASCADE;
+DROP TYPE IF EXISTS "public"."feedback_rating" CASCADE;
+DROP TYPE IF EXISTS "public"."intervention_status" CASCADE;
+DROP TYPE IF EXISTS "public"."intervention_type" CASCADE;
+DROP TYPE IF EXISTS "public"."message_status" CASCADE;
+DROP TYPE IF EXISTS "public"."metric_type" CASCADE;
+DROP TYPE IF EXISTS "public"."sla_status" CASCADE;
 
-        if OLD.priority != NEW.priority then
-            insert into ticket_history (ticket_id, field, old_value, new_value)
-            values (NEW.id, 'priority', OLD.priority, NEW.priority);
-        end if;
-    end if;
-    return NEW;
-end;
-$function$
-;
-
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-begin
-    new.updated_at = now();
-    return new;
-end;
-$function$
-;
-
-CREATE OR REPLACE FUNCTION public.create_mention_notifications()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-BEGIN
-    -- Debug logging
-    INSERT INTO debug_log (message) 
-    VALUES (
-        'TRIGGER FIRED - Activity: ' || NEW.id || 
-        ' Mentions: ' || NEW.mentioned_user_ids::text
+-- Step 5: Create types
+DO $$ BEGIN
+    CREATE TYPE "public"."analysis_type" AS ENUM (
+        'sentiment',
+        'priority',
+        'category',
+        'response',
+        'urgency'
     );
-    
-    -- Create notifications for any staff members who are mentioned
-    IF NEW.mentioned_user_ids IS NOT NULL AND array_length(NEW.mentioned_user_ids, 1) > 0 THEN
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."contact_type" AS ENUM (
+        'emergency_services',
+        'crisis_team',
+        'mental_health',
+        'support'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."event_type" AS ENUM (
+        'crisis_detected',
+        'alert_triggered',
+        'notification_sent',
+        'emergency_contacted',
+        'intervention_started',
+        'intervention_completed'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."feedback_rating" AS ENUM (
+        'high',
+        'medium',
+        'low',
+        'neutral'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."intervention_status" AS ENUM (
+        'active',
+        'completed',
+        'failed',
+        'referred'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."intervention_type" AS ENUM (
+        'crisis_response',
+        'emergency_services',
+        'team_intervention',
+        'external_referral',
+        'followup'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."message_status" AS ENUM (
+        'pending',
+        'processing',
+        'completed',
+        'failed'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."metric_type" AS ENUM (
+        'crisis_detection_latency',
+        'alert_trigger_latency',
+        'notification_delivery_latency',
+        'system_uptime',
+        'alert_delivery_success_rate'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "public"."sla_status" AS ENUM (
+        'pending',
+        'breached',
+        'met'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Step 6: Create tables in dependency order
+CREATE TABLE IF NOT EXISTS "public"."users_secure" (
+    "id" uuid NOT NULL,
+    "email" text NOT NULL,
+    "role" text,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "updated_at" timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT "users_secure_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "public"."profiles" (
+    "id" uuid NOT NULL,
+    "email" text,
+    "role" text,
+    CONSTRAINT "profiles_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "public"."tickets" (
+    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "title" text NOT NULL,
+    "description" text NOT NULL,
+    "status" text NOT NULL DEFAULT 'open',
+    "priority" text DEFAULT 'medium',
+    "metadata" jsonb NOT NULL DEFAULT '{}',
+    "created_by" uuid NOT NULL,
+    "assignee" uuid,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "updated_at" timestamptz NOT NULL DEFAULT now(),
+    "sla_response_deadline" timestamptz,
+    "sla_resolution_deadline" timestamptz,
+    "first_response_at" timestamptz,
+    "resolution_at" timestamptz,
+    "sla_response_status" public.sla_status DEFAULT 'pending',
+    "sla_resolution_status" public.sla_status DEFAULT 'pending',
+    CONSTRAINT "tickets_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "tickets_status_check" CHECK (status IN ('open', 'in_progress', 'resolved', 'closed'))
+);
+
+CREATE TABLE IF NOT EXISTS "public"."ticket_activities" (
+    "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "ticket_id" uuid NOT NULL,
+    "actor_id" uuid NOT NULL,
+    "activity_type" text NOT NULL,
+    "content" jsonb NOT NULL,
+    "mentioned_user_ids" uuid[] DEFAULT ARRAY[]::uuid[],
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT "ticket_activities_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "public"."notifications" (
+    "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "user_id" uuid NOT NULL,
+    "activity_id" uuid NOT NULL,
+    "read" boolean NOT NULL DEFAULT false,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "updated_at" timestamptz NOT NULL DEFAULT now(),
+    "ai_analysis_id" uuid,
+    "priority" text,
+    "confidence" double precision,
+    "ai_metadata" jsonb DEFAULT '{}'::jsonb,
+    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "public"."internal_notes" (
+    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "ticket_id" uuid NOT NULL,
+    "content" text NOT NULL,
+    "created_by" uuid NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    "updated_at" timestamptz NOT NULL DEFAULT now(),
+    "mentions" text[],
+    CONSTRAINT "internal_notes_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "public"."tags" (
+    "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
+    "name" text NOT NULL,
+    "color" text,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT "tags_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "tags_name_key" UNIQUE ("name")
+);
+
+CREATE TABLE IF NOT EXISTS "public"."ticket_tags" (
+    "ticket_id" uuid NOT NULL,
+    "tag_id" uuid NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT "ticket_tags_pkey" PRIMARY KEY ("ticket_id", "tag_id")
+);
+
+-- Step 7: Create indexes
+CREATE INDEX IF NOT EXISTS "idx_tickets_created_by" ON "public"."tickets" ("created_by");
+CREATE INDEX IF NOT EXISTS "idx_tickets_assignee" ON "public"."tickets" ("assignee");
+CREATE INDEX IF NOT EXISTS "idx_tickets_status" ON "public"."tickets" ("status");
+CREATE INDEX IF NOT EXISTS "idx_tickets_priority" ON "public"."tickets" ("priority");
+
+CREATE INDEX IF NOT EXISTS "idx_ticket_activities_ticket_id" ON "public"."ticket_activities" ("ticket_id");
+CREATE INDEX IF NOT EXISTS "idx_notifications_user_id" ON "public"."notifications" ("user_id");
+
+-- Step 8: Add foreign key constraints
+ALTER TABLE "public"."profiles" 
+    ADD CONSTRAINT "profiles_id_fkey" 
+    FOREIGN KEY ("id") REFERENCES "auth"."users"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."tickets" 
+    ADD CONSTRAINT "tickets_created_by_fkey" 
+    FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+
+ALTER TABLE "public"."tickets" 
+    ADD CONSTRAINT "tickets_assignee_fkey" 
+    FOREIGN KEY ("assignee") REFERENCES "auth"."users"("id");
+
+ALTER TABLE "public"."ticket_activities" 
+    ADD CONSTRAINT "ta_ticket_id_fkey" 
+    FOREIGN KEY ("ticket_id") REFERENCES "public"."tickets"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."ticket_activities" 
+    ADD CONSTRAINT "ta_actor_id_fkey" 
+    FOREIGN KEY ("actor_id") REFERENCES "public"."users_secure"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."notifications" 
+    ADD CONSTRAINT "notifications_user_id_fkey" 
+    FOREIGN KEY ("user_id") REFERENCES "public"."users_secure"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."notifications" 
+    ADD CONSTRAINT "notifications_activity_id_fkey" 
+    FOREIGN KEY ("activity_id") REFERENCES "public"."ticket_activities"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."internal_notes" 
+    ADD CONSTRAINT "internal_notes_ticket_id_fkey" 
+    FOREIGN KEY ("ticket_id") REFERENCES "public"."tickets"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."ticket_tags" 
+    ADD CONSTRAINT "ticket_tags_ticket_id_fkey" 
+    FOREIGN KEY ("ticket_id") REFERENCES "public"."tickets"("id") 
+    ON DELETE CASCADE;
+
+ALTER TABLE "public"."ticket_tags" 
+    ADD CONSTRAINT "ticket_tags_tag_id_fkey" 
+    FOREIGN KEY ("tag_id") REFERENCES "public"."tags"("id") 
+    ON DELETE CASCADE;
+
+-- Step 9: Create functions
+CREATE OR REPLACE FUNCTION "public"."calculate_sla_deadlines"()
+RETURNS TRIGGER AS $$
+DECLARE
+    policy_record RECORD;
+BEGIN
+    -- Get the active SLA policy for the ticket's priority
+    SELECT * INTO policy_record
+    FROM public.sla_policies
+    WHERE priority = NEW.priority AND is_active = true;
+
+    IF FOUND THEN
+        -- Calculate response deadline
+        NEW.sla_response_deadline := NEW.created_at + (policy_record.response_time_hours || ' hours')::interval;
+        -- Calculate resolution deadline
+        NEW.sla_resolution_deadline := NEW.created_at + (policy_record.resolution_time_hours || ' hours')::interval;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION "public"."create_mention_notifications"()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- If there are mentioned users, create notifications for staff members
+    IF NEW.mentioned_user_ids IS NOT NULL THEN
         INSERT INTO notifications (user_id, activity_id)
         SELECT us.id, NEW.id
         FROM unnest(NEW.mentioned_user_ids) AS mentioned_id
         JOIN users_secure us ON us.id = mentioned_id
-        WHERE LOWER(us.role) IN ('admin', 'agent');
+        WHERE us.role IN ('ADMIN', 'AGENT');
     END IF;
-    
     RETURN NEW;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION public.update_updated_at()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
+CREATE OR REPLACE FUNCTION "public"."update_updated_at"()
+RETURNS TRIGGER AS $$
 BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
+    NEW.updated_at = NOW();
+    RETURN NEW;
 END;
-$function$
-;
-
-grant delete on table "public"."debug_log" to "anon";
-
-grant insert on table "public"."debug_log" to "anon";
-
-grant references on table "public"."debug_log" to "anon";
-
-grant select on table "public"."debug_log" to "anon";
-
-grant trigger on table "public"."debug_log" to "anon";
-
-grant truncate on table "public"."debug_log" to "anon";
-
-grant update on table "public"."debug_log" to "anon";
-
-grant delete on table "public"."debug_log" to "authenticated";
-
-grant insert on table "public"."debug_log" to "authenticated";
-
-grant references on table "public"."debug_log" to "authenticated";
-
-grant select on table "public"."debug_log" to "authenticated";
-
-grant trigger on table "public"."debug_log" to "authenticated";
-
-grant truncate on table "public"."debug_log" to "authenticated";
-
-grant update on table "public"."debug_log" to "authenticated";
-
-grant delete on table "public"."debug_log" to "service_role";
-
-grant insert on table "public"."debug_log" to "service_role";
-
-grant references on table "public"."debug_log" to "service_role";
-
-grant select on table "public"."debug_log" to "service_role";
-
-grant trigger on table "public"."debug_log" to "service_role";
-
-grant truncate on table "public"."debug_log" to "service_role";
-
-grant update on table "public"."debug_log" to "service_role";
-
-grant delete on table "public"."quick_responses" to "anon";
-
-grant insert on table "public"."quick_responses" to "anon";
-
-grant references on table "public"."quick_responses" to "anon";
-
-grant select on table "public"."quick_responses" to "anon";
-
-grant trigger on table "public"."quick_responses" to "anon";
-
-grant truncate on table "public"."quick_responses" to "anon";
-
-grant update on table "public"."quick_responses" to "anon";
-
-grant delete on table "public"."quick_responses" to "authenticated";
-
-grant insert on table "public"."quick_responses" to "authenticated";
-
-grant references on table "public"."quick_responses" to "authenticated";
-
-grant select on table "public"."quick_responses" to "authenticated";
-
-grant trigger on table "public"."quick_responses" to "authenticated";
-
-grant truncate on table "public"."quick_responses" to "authenticated";
-
-grant update on table "public"."quick_responses" to "authenticated";
-
-grant delete on table "public"."quick_responses" to "service_role";
-
-grant insert on table "public"."quick_responses" to "service_role";
-
-grant references on table "public"."quick_responses" to "service_role";
-
-grant select on table "public"."quick_responses" to "service_role";
-
-grant trigger on table "public"."quick_responses" to "service_role";
-
-grant truncate on table "public"."quick_responses" to "service_role";
-
-grant update on table "public"."quick_responses" to "service_role";
-
-grant delete on table "public"."response_categories" to "anon";
-
-grant insert on table "public"."response_categories" to "anon";
-
-grant references on table "public"."response_categories" to "anon";
-
-grant select on table "public"."response_categories" to "anon";
-
-grant trigger on table "public"."response_categories" to "anon";
-
-grant truncate on table "public"."response_categories" to "anon";
-
-grant update on table "public"."response_categories" to "anon";
-
-grant delete on table "public"."response_categories" to "authenticated";
-
-grant insert on table "public"."response_categories" to "authenticated";
-
-grant references on table "public"."response_categories" to "authenticated";
-
-grant select on table "public"."response_categories" to "authenticated";
-
-grant trigger on table "public"."response_categories" to "authenticated";
-
-grant truncate on table "public"."response_categories" to "authenticated";
-
-grant update on table "public"."response_categories" to "authenticated";
-
-grant delete on table "public"."response_categories" to "service_role";
-
-grant insert on table "public"."response_categories" to "service_role";
-
-grant references on table "public"."response_categories" to "service_role";
-
-grant select on table "public"."response_categories" to "service_role";
-
-grant trigger on table "public"."response_categories" to "service_role";
-
-grant truncate on table "public"."response_categories" to "service_role";
-
-grant update on table "public"."response_categories" to "service_role";
-
-grant delete on table "public"."tags" to "anon";
-
-grant insert on table "public"."tags" to "anon";
-
-grant references on table "public"."tags" to "anon";
-
-grant select on table "public"."tags" to "anon";
-
-grant trigger on table "public"."tags" to "anon";
-
-grant truncate on table "public"."tags" to "anon";
-
-grant update on table "public"."tags" to "anon";
-
-grant delete on table "public"."tags" to "authenticated";
-
-grant insert on table "public"."tags" to "authenticated";
-
-grant references on table "public"."tags" to "authenticated";
-
-grant select on table "public"."tags" to "authenticated";
-
-grant trigger on table "public"."tags" to "authenticated";
-
-grant truncate on table "public"."tags" to "authenticated";
-
-grant update on table "public"."tags" to "authenticated";
-
-grant delete on table "public"."tags" to "service_role";
-
-grant insert on table "public"."tags" to "service_role";
-
-grant references on table "public"."tags" to "service_role";
-
-grant select on table "public"."tags" to "service_role";
-
-grant trigger on table "public"."tags" to "service_role";
-
-grant truncate on table "public"."tags" to "service_role";
-
-grant update on table "public"."tags" to "service_role";
-
-grant delete on table "public"."ticket_history" to "anon";
-
-grant insert on table "public"."ticket_history" to "anon";
-
-grant references on table "public"."ticket_history" to "anon";
-
-grant select on table "public"."ticket_history" to "anon";
-
-grant trigger on table "public"."ticket_history" to "anon";
-
-grant truncate on table "public"."ticket_history" to "anon";
-
-grant update on table "public"."ticket_history" to "anon";
-
-grant delete on table "public"."ticket_history" to "authenticated";
-
-grant insert on table "public"."ticket_history" to "authenticated";
-
-grant references on table "public"."ticket_history" to "authenticated";
-
-grant select on table "public"."ticket_history" to "authenticated";
-
-grant trigger on table "public"."ticket_history" to "authenticated";
-
-grant truncate on table "public"."ticket_history" to "authenticated";
-
-grant update on table "public"."ticket_history" to "authenticated";
-
-grant delete on table "public"."ticket_history" to "service_role";
-
-grant insert on table "public"."ticket_history" to "service_role";
-
-grant references on table "public"."ticket_history" to "service_role";
-
-grant select on table "public"."ticket_history" to "service_role";
-
-grant trigger on table "public"."ticket_history" to "service_role";
-
-grant truncate on table "public"."ticket_history" to "service_role";
-
-grant update on table "public"."ticket_history" to "service_role";
-
-grant delete on table "public"."ticket_messages" to "anon";
-
-grant insert on table "public"."ticket_messages" to "anon";
-
-grant references on table "public"."ticket_messages" to "anon";
-
-grant select on table "public"."ticket_messages" to "anon";
-
-grant trigger on table "public"."ticket_messages" to "anon";
-
-grant truncate on table "public"."ticket_messages" to "anon";
-
-grant update on table "public"."ticket_messages" to "anon";
-
-grant delete on table "public"."ticket_messages" to "authenticated";
-
-grant insert on table "public"."ticket_messages" to "authenticated";
-
-grant references on table "public"."ticket_messages" to "authenticated";
-
-grant select on table "public"."ticket_messages" to "authenticated";
-
-grant trigger on table "public"."ticket_messages" to "authenticated";
-
-grant truncate on table "public"."ticket_messages" to "authenticated";
-
-grant update on table "public"."ticket_messages" to "authenticated";
-
-grant delete on table "public"."ticket_messages" to "service_role";
-
-grant insert on table "public"."ticket_messages" to "service_role";
-
-grant references on table "public"."ticket_messages" to "service_role";
-
-grant select on table "public"."ticket_messages" to "service_role";
-
-grant trigger on table "public"."ticket_messages" to "service_role";
-
-grant truncate on table "public"."ticket_messages" to "service_role";
-
-grant update on table "public"."ticket_messages" to "service_role";
-
-grant delete on table "public"."ticket_tags" to "anon";
-
-grant insert on table "public"."ticket_tags" to "anon";
-
-grant references on table "public"."ticket_tags" to "anon";
-
-grant select on table "public"."ticket_tags" to "anon";
-
-grant trigger on table "public"."ticket_tags" to "anon";
-
-grant truncate on table "public"."ticket_tags" to "anon";
-
-grant update on table "public"."ticket_tags" to "anon";
-
-grant delete on table "public"."ticket_tags" to "authenticated";
-
-grant insert on table "public"."ticket_tags" to "authenticated";
-
-grant references on table "public"."ticket_tags" to "authenticated";
-
-grant select on table "public"."ticket_tags" to "authenticated";
-
-grant trigger on table "public"."ticket_tags" to "authenticated";
-
-grant truncate on table "public"."ticket_tags" to "authenticated";
-
-grant update on table "public"."ticket_tags" to "authenticated";
-
-grant delete on table "public"."ticket_tags" to "service_role";
-
-grant insert on table "public"."ticket_tags" to "service_role";
-
-grant references on table "public"."ticket_tags" to "service_role";
-
-grant select on table "public"."ticket_tags" to "service_role";
-
-grant trigger on table "public"."ticket_tags" to "service_role";
-
-grant truncate on table "public"."ticket_tags" to "service_role";
-
-grant update on table "public"."ticket_tags" to "service_role";
-
-create policy "create_internal_notes"
-on "public"."internal_notes"
-as permissive
-for insert
-to authenticated
-with check ((EXISTS ( SELECT 1
-   FROM tickets t
-  WHERE ((t.id = internal_notes.ticket_id) AND ((t.assignee = auth.uid()) OR (t.assignee IS NULL))))));
-
-
-create policy "insert_internal_notes"
-on "public"."internal_notes"
-as permissive
-for insert
-to authenticated
-with check ((auth.uid() IS NOT NULL));
-
-
-create policy "view_internal_notes"
-on "public"."internal_notes"
-as permissive
-for select
-to authenticated
-using ((EXISTS ( SELECT 1
-   FROM tickets t
-  WHERE ((t.id = internal_notes.ticket_id) AND ((t.assignee = auth.uid()) OR (t.assignee IS NULL))))));
-
-
-create policy "notif_select_policy"
-on "public"."notifications"
-as permissive
-for select
-to public
-using ((user_id = auth.uid()));
-
-
-create policy "notifications_insert_policy"
-on "public"."notifications"
-as permissive
-for insert
-to authenticated
-with check (true);
-
-
-create policy "Tags are viewable by authenticated users"
-on "public"."tags"
-as permissive
-for select
-to authenticated
-using (true);
-
-
-create policy "ta_select_policy"
-on "public"."ticket_activities"
-as permissive
-for select
-to public
-using (((EXISTS ( SELECT 1
-   FROM users_secure us
-  WHERE ((us.id = auth.uid()) AND (us.role = ANY (ARRAY['admin'::text, 'agent'::text]))))) OR (EXISTS ( SELECT 1
-   FROM tickets t
-  WHERE ((t.id = ticket_activities.ticket_id) AND ((t.created_by = auth.uid()) OR (t.assignee = auth.uid())))))));
-
-
-create policy "Ticket messages are insertable by authenticated users"
-on "public"."ticket_messages"
-as permissive
-for insert
-to authenticated
-with check (true);
-
-
-create policy "Ticket messages are viewable by authenticated users"
-on "public"."ticket_messages"
-as permissive
-for select
-to authenticated
-using (true);
-
-
-create policy "Ticket tags are viewable by authenticated users"
-on "public"."ticket_tags"
-as permissive
-for select
-to authenticated
-using (true);
-
-
-create policy "Authenticated users can create tickets"
-on "public"."tickets"
-as permissive
-for insert
-to authenticated
-with check (true);
-
-
-create policy "Authenticated users can update tickets"
-on "public"."tickets"
-as permissive
-for update
-to authenticated
-using (true);
-
-
-create policy "Authenticated users can view all tickets"
-on "public"."tickets"
-as permissive
-for select
-to authenticated
-using (true);
-
-
-CREATE TRIGGER update_internal_notes_updated_at BEFORE UPDATE ON public.internal_notes FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_quick_responses_updated_at BEFORE UPDATE ON public.quick_responses FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER ticket_history_trigger AFTER UPDATE ON public.tickets FOR EACH ROW EXECUTE FUNCTION record_ticket_change();
+$$ LANGUAGE plpgsql;
+
+-- Step 10: Create triggers
+DO $$ BEGIN
+    CREATE TRIGGER "set_ticket_sla_deadlines"
+        BEFORE INSERT ON "public"."tickets"
+        FOR EACH ROW
+        EXECUTE FUNCTION "public"."calculate_sla_deadlines"();
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TRIGGER "on_mention"
+        AFTER INSERT OR UPDATE OF mentioned_user_ids ON "public"."ticket_activities"
+        FOR EACH ROW
+        WHEN (NEW.activity_type = 'comment')
+        EXECUTE FUNCTION "public"."create_mention_notifications"();
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TRIGGER "set_updated_at"
+        BEFORE UPDATE ON "public"."notifications"
+        FOR EACH ROW
+        EXECUTE FUNCTION "public"."update_updated_at"();
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Step 11: Enable RLS and create policies
+ALTER TABLE "public"."tickets" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."ticket_activities" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."internal_notes" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."tags" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."ticket_tags" ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+    CREATE POLICY "tickets_select_policy" ON "public"."tickets"
+        FOR SELECT USING (
+            auth.uid() = created_by OR 
+            EXISTS (
+                SELECT 1 FROM public.users_secure 
+                WHERE id = auth.uid() 
+                AND role IN ('admin', 'agent')
+            )
+        );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "tickets_insert_policy" ON "public"."tickets"
+        FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "tickets_update_policy" ON "public"."tickets"
+        FOR UPDATE USING (
+            EXISTS (
+                SELECT 1 FROM public.users_secure 
+                WHERE id = auth.uid() 
+                AND role IN ('admin', 'agent')
+            )
+        );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "notifications_select_policy" ON "public"."notifications"
+        FOR SELECT USING (user_id = auth.uid());
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "notifications_update_policy" ON "public"."notifications"
+        FOR UPDATE USING (user_id = auth.uid())
+        WITH CHECK (user_id = auth.uid());
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 
